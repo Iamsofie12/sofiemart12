@@ -43,11 +43,12 @@
     overflow: hidden; position: relative; display: grid; place-items: end center;
   }
   .avatar svg { width: 104px; height: 104px; --fur: #fff; --inner: #f1c9bd; margin-bottom: -6px; }
-  .avatar img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 12%; }
+  .avatar img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 4%; }
+  .photos-title { margin-top: 28px; }
 
   /* Galerie photos */
   .gallery {
-    margin: 24px -16px 0; padding: 4px 16px 10px;
+    margin: 12px -16px 0; padding: 4px 16px 10px;
     display: flex; gap: 10px; overflow-x: auto;
     scroll-snap-type: x proximity; scrollbar-width: none;
   }
@@ -161,11 +162,13 @@
   <h1>Sofie</h1>
   <p class="tag">🎾 Pour mieux me connaître · Suis-moi partout</p>
 
+  <div class="links" id="links"></div>
+
+  <div class="section photos-title">Mes photos</div>
   <div class="gallery" aria-label="Photos">
     <img src="n1.jpg" alt="Sofie qui rit sur un court en gazon">
     <img src="n2.jpg" alt="Sofie à genoux sur le court avec une raquette en bois">
     <img src="n3.jpg" alt="Sofie au filet sous un ciel rose">
-    <img src="n4.jpg" alt="Sofie souriante sur terre battue">
     <img src="g1.jpg" alt="Sofie en match de tennis">
     <img src="n5.jpg" alt="Sofie en robe noire de tennis">
     <img src="n6.jpg" alt="Sofie assise sur le court">
@@ -175,10 +178,8 @@
     <img src="g5.jpg" alt="Sofie en soirée">
     <img src="g6.jpg" alt="Sofie en robe blanche">
   </div>
-
   <p class="hint">Touche une photo pour l'agrandir ✨</p>
 
-  <div class="links" id="links"></div>
   <footer>© <span id="year"></span> Sofie · fait avec 🤎</footer>
 </main>
 
