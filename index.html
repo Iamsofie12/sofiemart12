@@ -49,16 +49,18 @@
   /* Galerie photos */
   .gallery {
     margin: 12px -16px 0; padding: 4px 16px 10px;
-    display: flex; gap: 10px; overflow-x: auto;
+    display: grid; grid-auto-flow: column; grid-template-rows: repeat(2, 200px);
+    grid-auto-columns: 152px; gap: 10px; overflow-x: auto;
     scroll-snap-type: x proximity; scrollbar-width: none;
   }
   .gallery::-webkit-scrollbar { display: none; }
   .gallery img {
-    height: 380px; max-width: 86vw; width: auto; object-fit: cover; flex: none; scroll-snap-align: center;
-    border-radius: 18px; border: 3px solid #fff; cursor: zoom-in;
-    box-shadow: 0 8px 20px rgba(92,61,42,.25);
+    width: 100%; height: 100%; object-fit: cover; scroll-snap-align: start;
+    border-radius: 16px; border: 3px solid #fff; cursor: zoom-in;
+    box-shadow: 0 6px 16px rgba(92,61,42,.22);
     background: var(--sand);
   }
+  .gallery img.wide { grid-row: 1; grid-column: 1 / span 2; }
   .hint { margin-top: 2px; font-size: .78rem; color: #8a6a52; }
 
   /* Photo en grand */
@@ -166,17 +168,23 @@
 
   <div class="section photos-title">Mes photos</div>
   <div class="gallery" aria-label="Photos">
-    <img src="n1.jpg" alt="Sofie qui rit sur un court en gazon">
-    <img src="n2.jpg" alt="Sofie à genoux sur le court avec une raquette en bois">
-    <img src="n3.jpg" alt="Sofie au filet sous un ciel rose">
-    <img src="g1.jpg" alt="Sofie en match de tennis">
-    <img src="n5.jpg" alt="Sofie en robe noire de tennis">
-    <img src="n6.jpg" alt="Sofie assise sur le court">
-    <img src="g3.jpg" alt="Sofie au service">
-    <img src="n7.jpg" alt="Sofie en plein revers">
-    <img src="g4.jpg" alt="Sofie sur un balcon au coucher du soleil">
-    <img src="g5.jpg" alt="Sofie en soirée">
-    <img src="g6.jpg" alt="Sofie en robe blanche">
+    <img class="wide" src="thumbs/t-equipe.jpg" data-full="photos/t-equipe.jpg" style="object-position:50% 25%" alt="Sofie et ses coéquipières avec leurs médailles">
+    <img src="thumbs/l-blouse.jpg" data-full="photos/l-blouse.jpg" style="object-position:50% 15%" alt="Sofie en blouse blanche, selfie">
+    <img src="thumbs/t-revers-terre.jpg" data-full="photos/t-revers-terre.jpg" style="object-position:37% 50%" alt="Sofie en plein revers sur terre battue">
+    <img src="thumbs/t-genou.jpg" data-full="photos/t-genou.jpg" alt="Sofie à genoux sur le court avec une raquette en bois">
+    <img src="thumbs/l-bar.jpg" data-full="photos/l-bar.jpg" style="object-position:50% 35%" alt="Sofie souriante en soirée">
+    <img src="thumbs/l-robe-blanche.jpg" data-full="photos/l-robe-blanche.jpg" alt="Sofie en robe blanche">
+    <img src="thumbs/t-service-saut.jpg" data-full="photos/t-service-saut.jpg" style="object-position:50% 40%" alt="Sofie au service">
+    <img src="thumbs/t-coucher.jpg" data-full="photos/t-coucher.jpg" alt="Sofie au filet sous un ciel rose">
+    <img src="thumbs/t-roland.jpg" data-full="photos/t-roland.jpg" style="object-position:50% 60%" alt="Sofie en coup droit sur terre battue">
+    <img src="thumbs/l-miroir.jpg" data-full="photos/l-miroir.jpg" style="object-position:50% 35%" alt="Sofie en jupe à paillettes">
+    <img src="thumbs/t-revers-bleu.jpg" data-full="photos/t-revers-bleu.jpg" style="object-position:43% 50%" alt="Sofie concentrée sur un court bleu">
+    <img src="thumbs/t-robe-noire.jpg" data-full="photos/t-robe-noire.jpg" alt="Sofie en robe noire de tennis">
+    <img src="thumbs/l-bar-main.jpg" data-full="photos/l-bar-main.jpg" style="object-position:50% 30%" alt="Sofie en terrasse">
+    <img src="thumbs/t-gazon-assise.jpg" data-full="photos/t-gazon-assise.jpg" alt="Sofie assise sur le court">
+    <img src="thumbs/t-position.jpg" data-full="photos/t-position.jpg" alt="Sofie en position de jeu">
+    <img src="thumbs/l-balcon.jpg" data-full="photos/l-balcon.jpg" alt="Sofie sur un balcon au coucher du soleil">
+    <img src="thumbs/t-service-dos.jpg" data-full="photos/t-service-dos.jpg" alt="Sofie au service, de dos">
   </div>
   <p class="hint">Touche une photo pour l'agrandir ✨</p>
 
@@ -200,7 +208,7 @@
   (function () {
     var photos = Array.prototype.slice.call(document.querySelectorAll(".gallery img"));
     var box = document.getElementById("lightbox"), big = box.querySelector("img"), cur = 0;
-    function show(i) { cur = (i + photos.length) % photos.length; big.src = photos[cur].src; big.alt = photos[cur].alt; box.classList.add("open"); }
+    function show(i) { cur = (i + photos.length) % photos.length; big.src = photos[cur].dataset.full || photos[cur].src; big.alt = photos[cur].alt; box.classList.add("open"); }
     function hide() { box.classList.remove("open"); }
     photos.forEach(function (p, i) { p.addEventListener("click", function () { show(i); }); });
     box.querySelector(".close").onclick = hide;
