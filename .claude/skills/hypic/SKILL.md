@@ -54,6 +54,7 @@ De `0` à `4`, par pas de 0,5 :
 Les zones non citées gardent leur valeur par défaut. Toujours rappeler en une ligne les réglages appliqués.
 
 ## Règles permanentes
+0. **Lèvres : choix de Sofie = nude naturel (version A).** Lèvres qui suivent le hâle, gloss = reflets seulement. Teinte mauve (`--teinte`) à 0, sauf si elle la demande, même quand elle dit « tout à N ».
 0. **Fossettes de Sofie : toujours protégées.** Elle les aime : jamais lissées, rebouchées ni couvertes par le contouring (le programme le fait automatiquement ; seuls les petits boutons ronds y sont enlevés).
 1. Bronzage homogène sur TOUTE la peau visible (les lèvres suivent le hâle, sinon elles paraissent rose pâle ; Sofie n'aime pas le rose pâle sur les lèvres) (visage, cou, décolleté, bras, mains, jambes), sans démarcation, sous-tons naturels, ombres et reflets cohérents avec la lumière.
 2. Acné traitée méticuleusement zone par zone (front, joues, menton, mâchoire, tempes).
@@ -70,7 +71,7 @@ Commande :
 ```
 python3 tools/hypic/hypic.py PHOTO --bronzage 1.5 --acne 4 --lissage 1 --cils 1 --sourcils 0.5 --cheveux 1 [--levres N --gloss N --liner N --teinte N --cernes N --dents N --maquillage N --glow N --iris N --highlights N] --comparer
 ```
-« tout à N » = TOUTES les zones à N, options comprises (lèvres, gloss, liner, teinte, cernes, dents, maquillage, glow, iris, highlights).
+« tout à N » = TOUTES les zones à N, options comprises, SAUF la teinte mauve qui reste à 0 (lèvres, gloss, liner, cernes, dents, maquillage, glow, iris, highlights).
 
 Photo avec d'autres personnes : ajouter `--zone x0,y0,x1,y1` (fractions 0-1 de l'image, répétable) pour ne retoucher QUE Sofie (visage, peau, cheveux). Toujours vérifier s'il y a quelqu'un d'autre sur la photo.
 Les autres personnes reçoivent seulement un léger bronzage, par défaut **la moitié** de celui de Sofie (Sofie 2 → autres 1), pour que l'écart de teint ne se voie pas. Réglable avec `--autres 0-4` (`--autres 0` = ne pas les toucher du tout). Sofie peut dire « autres 1.5 » dans sa demande.
