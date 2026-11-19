@@ -64,8 +64,7 @@ Commande :
 python3 tools/hypic/hypic.py PHOTO --bronzage 1.5 --acne 4 --lissage 1 --cils 1 --sourcils 0.5 --cheveux 1 [--levres N --cernes N --dents N --maquillage N] --comparer
 ```
 « tout à N » = TOUTES les zones à N, options comprises (lèvres, cernes, dents, maquillage).
-```
-```
+
 Photo avec d'autres personnes : ajouter `--zone x0,y0,x1,y1` (fractions 0-1 de l'image, répétable) pour ne retoucher QUE Sofie (visage, peau, cheveux). Toujours vérifier s'il y a quelqu'un d'autre sur la photo.
 Les autres personnes reçoivent seulement un léger bronzage, par défaut **la moitié** de celui de Sofie (Sofie 2 → autres 1), pour que l'écart de teint ne se voie pas. Réglable avec `--autres 0-4` (`--autres 0` = ne pas les toucher du tout). Sofie peut dire « autres 1.5 » dans sa demande.
 → crée `PHOTO_hypic.jpg` (même résolution, JPEG qualité 96) et `PHOTO_hypic_avant-apres.jpg`.
