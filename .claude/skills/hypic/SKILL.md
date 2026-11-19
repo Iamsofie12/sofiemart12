@@ -99,7 +99,7 @@ Ce que fait le programme, zone par zone :
 - Cils : effet "mascara + légèrement plus longs", pas de faux cils dessinés.
 - Frisottis : supprimés surtout sur fond uni ; sur fond chargé, l'effet est plus léger.
 - Petits visages (photos en pied) : détectés grâce à un zoom automatique.
-- Visage de profil : seuls l'œil, le sourcil et la joue visibles sont retouchés (pas de contouring du nez).
+- Visage de profil : seuls l'œil, le sourcil et la joue visibles sont retouchés (pas de contouring du nez, pas d'éclat de l'iris).
 - Visage non détecté (de dos, très flou) : seuls bronzage et cheveux s'appliquent.
 
 ## Code du programme (hypic.py)
@@ -468,20 +468,29 @@ def sourcils(img, lm, fw, level):
             continue
         pts = lm[idx]
         c = pts.mean(0)
-        core_pts = c + (pts - c) * np.array([1.0, 1 - 0.11 * level])
+        core_pts = c + (pts - c) * np.array([1.0, 1 - 0.06 * level])
         core = poly_mask(img.shape, core_pts)
         thick = max(3.0, np.ptp(pts[:, 1]))
         k = max(3, int(thick * (0.6 + 0.2 * level))) | 1
         around = cv2.dilate(poly_mask(img.shape, pts), cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (k, k)))
         ring = np.clip(around - cv2.dilate(core, np.ones((3, 3), np.uint8)), 0, 1)
         skinL = cv2.medianBlur(u8(L / 100), max(5, int(thick) | 1)).astype(np.float32) / 255 * 100
-        stray = ((skinL - L) > 3) & (ring > 0)
+        stray = (((skinL - L) > 3) & (ring > 0)).astype(np.uint8)
+        # on n'efface que les petits poils isolés, jamais un morceau du sourcil lui-même
+        core_d = cv2.dilate(core.astype(np.uint8), np.ones((3, 3), np.uint8))
+        n_, lab_, st_, _ = cv2.connectedComponentsWithStats(stray)
+        keep = np.zeros(n_, bool)
+        if n_ > 1:
+            big = st_[1:, cv2.CC_STAT_AREA] > thick * thick * 0.35
+            keep[1:] = ~big
+        stray = keep[lab_] & (stray > 0)
+        stray &= ~(cv2.dilate(core_d, np.ones((3, 3), np.uint8)) > 0) | (st_[lab_, cv2.CC_STAT_AREA] < thick * 0.8)
         if not stray.any():
             continue
         filled = cv2.inpaint(u8(out), stray.astype(np.uint8), max(3, int(thick / 3)), cv2.INPAINT_TELEA).astype(np.float32) / 255
         g = max(1.0, fw / 400)
         filled = gauss(filled, g) + (out - gauss(out, g)) * 0.6
-        m = gauss(stray.astype(np.float32), 1.0) * min(1.0, 0.3 + 0.35 * level)
+        m = gauss(stray.astype(np.float32), 1.0) * min(0.85, 0.3 + 0.25 * level)
         out = blend(out, np.clip(filled, 0, 1), m)
     return out
 
@@ -728,7 +737,10 @@ def iris_eclat(img, lm, fw, level):
     k = level / 4.0
     h, w = img.shape[:2]
     out = img.copy()
-    for (up, lo, ir), ok in zip(((EYE_R_UP, EYE_R_LO, IRIS_R), (EYE_L_UP, EYE_L_LO, IRIS_L)), visible_eyes(lm)):
+    vis = visible_eyes(lm)
+    if not all(vis):                                      # de profil, l'iris est mal repéré : on ne touche pas
+        return img
+    for (up, lo, ir), ok in zip(((EYE_R_UP, EYE_R_LO, IRIS_R), (EYE_L_UP, EYE_L_LO, IRIS_L)), vis):
         if not ok:
             continue
         opening = poly_mask(img.shape, np.vstack([lm[up], lm[lo][::-1]]))
@@ -736,8 +748,9 @@ def iris_eclat(img, lm, fw, level):
             continue
         c = lm[ir[0]]
         r = float(np.mean(np.linalg.norm(lm[ir[1:]] - c, axis=1)))
-        if r < 2:
-            continue
+        cy, cx = int(round(c[1])), int(round(c[0]))
+        if r < 2 or not (0 <= cy < h and 0 <= cx < w) or opening[cy, cx] < 0.5:
+            continue                                      # iris pas clairement dans l'œil : on s'abstient
         x0, y0 = int(max(0, c[0] - 3 * r)), int(max(0, c[1] - 3 * r))
         x1, y1 = int(min(w, c[0] + 3 * r)), int(min(h, c[1] + 3 * r))
         yy, xx = np.mgrid[y0:y1, x0:x1].astype(np.float32)
