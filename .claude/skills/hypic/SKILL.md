@@ -55,6 +55,7 @@ Commande :
 ```
 python3 tools/hypic/hypic.py PHOTO --bronzage 1.5 --acne 4 --lissage 1 --cils 1 --sourcils 0.5 --cheveux 1 --comparer
 ```
+Photo avec d'autres personnes : ajouter `--zone x0,y0,x1,y1` (fractions 0-1 de l'image, répétable) pour ne retoucher QUE Sofie (visage, peau, cheveux). Toujours vérifier s'il y a quelqu'un d'autre sur la photo.
 → crée `PHOTO_hypic.jpg` (même résolution, JPEG qualité 96) et `PHOTO_hypic_avant-apres.jpg`.
 
 Ce que fait le programme, zone par zone :
@@ -83,7 +84,8 @@ Ce que fait le programme, zone par zone :
 ## Limites honnêtes du programme maison
 - Cils : effet "mascara + légèrement plus longs", pas de faux cils dessinés.
 - Frisottis : supprimés surtout sur fond uni ; sur fond chargé, l'effet est plus léger.
-- Visage non détecté (de dos, très petit, très flou) : seuls bronzage et cheveux s'appliquent.
+- Petits visages (photos en pied) : détectés grâce à un zoom automatique.
+- Visage non détecté (de dos, très flou) : seuls bronzage et cheveux s'appliquent.
 
 ## Code du programme (hypic.py)
 ```python
@@ -184,7 +186,7 @@ def u8(img):
 
 
 # --------------------------------------------------------------- analyse
-def analyse(img):
+def analyse(img, zone=None):
     import mediapipe as mp
     from mediapipe.tasks.python import BaseOptions, vision
 
@@ -203,13 +205,60 @@ def analyse(img):
     # 0 fond, 1 cheveux, 2 peau du corps, 3 peau du visage, 4 vêtements, 5 accessoires
 
     fl = vision.FaceLandmarker.create_from_options(vision.FaceLandmarkerOptions(
-        base_options=BaseOptions(model_asset_path=model_path("face")), num_faces=1))
-    res = fl.detect(mpi)
+        base_options=BaseOptions(model_asset_path=model_path("face")), num_faces=4))
+
+    def detect(x0, y0, x1, y1):
+        """Cherche les visages dans un morceau de l'image (zoom), renvoie les points en coordonnées globales."""
+        crop = np.ascontiguousarray(rgb[y0:y1, x0:x1])
+        if crop.shape[0] < 32 or crop.shape[1] < 32:
+            return []
+        r = fl.detect(mp.Image(image_format=mp.ImageFormat.SRGB, data=crop))
+        cw, ch = x1 - x0, y1 - y0
+        return [np.array([[p.x * cw + x0, p.y * ch + y0] for p in f], np.float32) for f in r.face_landmarks]
+
+    def candidates():
+        # 1) image entière (selfies, portraits serrés)
+        found = detect(0, 0, w, h)
+        if found:
+            return found
+        # 2) zoom autour de chaque zone de "peau du visage" repérée par la segmentation
+        fs = (conf[3] > 0.4).astype(np.uint8)
+        if zone is not None:
+            fs &= (zone > 0.5).astype(np.uint8)
+        n, _, st, _ = cv2.connectedComponentsWithStats(fs)
+        order = np.argsort(-st[1:, cv2.CC_STAT_AREA]) + 1 if n > 1 else []
+        for i in list(order)[:4]:
+            if st[i, cv2.CC_STAT_AREA] < 150:
+                continue
+            x, y, bw, bh = st[i, :4]
+            side = int(max(bw, bh) * 2.6)
+            cx, cy = x + bw // 2, y + bh // 2
+            found += detect(max(0, cx - side // 2), max(0, cy - side // 2), min(w, cx + side // 2), min(h, cy + side // 2))
+        if found:
+            return found
+        # 3) secours : balayage de l'image par morceaux qui se chevauchent
+        for n_ in (2, 3, 4):
+            step_w, step_h = w / (n_ + 1), h / (n_ + 1)
+            for i in range(n_):
+                for j in range(n_):
+                    found += detect(int(j * step_w), int(i * step_h), int((j + 2) * step_w), int((i + 2) * step_h))
+            if found:
+                return found
+        return found
+
+    # Plusieurs visages possibles : on garde le plus grand, situé dans la zone de Sofie.
+    lm, best = None, 0
+    for pts in candidates():
+        cx, cy = pts.mean(0).astype(int)
+        if not (0 <= cx < w and 0 <= cy < h):
+            continue
+        if zone is not None and zone[cy, cx] < 0.5:
+            continue
+        size = np.linalg.norm(pts[454] - pts[234])
+        if size > best:
+            lm, best = pts, size
     seg.close()
     fl.close()
-    lm = None
-    if res.face_landmarks:
-        lm = np.array([[p.x * w, p.y * h] for p in res.face_landmarks[0]], np.float32)
     return conf, lm
 
 
@@ -444,9 +493,18 @@ def cheveux(img, conf, fw, level):
 # --------------------------------------------------------------- programme
 def retouche(path, out_path, s):
     pil = ImageOps.exif_transpose(Image.open(path)).convert("RGB")
-    img = np.asarray(pil).astype(np.float32) / 255
-    conf, lm = analyse(img)
+    orig = np.asarray(pil).astype(np.float32) / 255
+    img = orig
     h, w = img.shape[:2]
+    zone = None
+    if s.zone:
+        # zones "x0,y0,x1,y1" en fractions de l'image : on ne retouche QUE la personne dedans
+        zone = np.zeros((h, w), np.float32)
+        for z in s.zone:
+            x0, y0, x1, y1 = [float(v) for v in z.split(",")]
+            zone[int(y0 * h):int(y1 * h), int(x0 * w):int(x1 * w)] = 1
+        zone = gauss(zone, min(h, w) / 200)
+    conf, lm = analyse(img, zone)
     report = []
 
     if lm is not None:
@@ -478,6 +536,8 @@ def retouche(path, out_path, s):
     img = bronzage(img, skin, s.bronzage)
     report.append(f"Bronzage {s.bronzage}")
 
+    if zone is not None:
+        img = blend(orig, img, zone)
     Image.fromarray(u8(img)).save(out_path, quality=96, subsampling=0)
     if s.comparer:
         before = np.asarray(pil)
@@ -494,6 +554,7 @@ def main():
     p.add_argument("-o", "--sortie")
     for name, default in (("bronzage", 1.5), ("acne", 4), ("lissage", 1), ("cils", 1), ("sourcils", 0.5), ("cheveux", 1)):
         p.add_argument(f"--{name}", type=float, default=default)
+    p.add_argument("--zone", action="append", help="x0,y0,x1,y1 en fractions (0-1) : retoucher seulement cette zone (répétable)")
     p.add_argument("--comparer", action="store_true", help="crée aussi une image avant/après")
     s = p.parse_args()
     for name in ("bronzage", "acne", "lissage", "cils", "sourcils", "cheveux"):
