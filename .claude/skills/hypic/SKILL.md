@@ -56,6 +56,7 @@ Commande :
 python3 tools/hypic/hypic.py PHOTO --bronzage 1.5 --acne 4 --lissage 1 --cils 1 --sourcils 0.5 --cheveux 1 --comparer
 ```
 Photo avec d'autres personnes : ajouter `--zone x0,y0,x1,y1` (fractions 0-1 de l'image, répétable) pour ne retoucher QUE Sofie (visage, peau, cheveux). Toujours vérifier s'il y a quelqu'un d'autre sur la photo.
+Les autres personnes reçoivent seulement un léger bronzage, par défaut **la moitié** de celui de Sofie (Sofie 2 → autres 1), pour que l'écart de teint ne se voie pas. Réglable avec `--autres 0-4` (`--autres 0` = ne pas les toucher du tout). Sofie peut dire « autres 1.5 » dans sa demande.
 → crée `PHOTO_hypic.jpg` (même résolution, JPEG qualité 96) et `PHOTO_hypic_avant-apres.jpg`.
 
 Ce que fait le programme, zone par zone :
@@ -538,6 +539,13 @@ def retouche(path, out_path, s):
 
     if zone is not None:
         img = blend(orig, img, zone)
+        # Les autres personnes : seulement un léger bronzage (par défaut la moitié de celui de Sofie),
+        # pour que l'écart de teint ne se remarque pas. Aucune autre retouche sur elles.
+        autres = s.bronzage / 2 if s.autres is None else s.autres
+        if autres > 0:
+            others_skin = np.clip((conf[2] + conf[3]) * (1 - zone), 0, 1)
+            img = bronzage(img, others_skin, autres)
+            report.append(f"Autres personnes : bronzage {autres} uniquement")
     Image.fromarray(u8(img)).save(out_path, quality=96, subsampling=0)
     if s.comparer:
         before = np.asarray(pil)
@@ -555,10 +563,14 @@ def main():
     for name, default in (("bronzage", 1.5), ("acne", 4), ("lissage", 1), ("cils", 1), ("sourcils", 0.5), ("cheveux", 1)):
         p.add_argument(f"--{name}", type=float, default=default)
     p.add_argument("--zone", action="append", help="x0,y0,x1,y1 en fractions (0-1) : retoucher seulement cette zone (répétable)")
+    p.add_argument("--autres", type=float, default=None,
+                   help="bronzage des autres personnes (hors zone), 0-4 ; par défaut la moitié du bronzage de Sofie")
     p.add_argument("--comparer", action="store_true", help="crée aussi une image avant/après")
     s = p.parse_args()
-    for name in ("bronzage", "acne", "lissage", "cils", "sourcils", "cheveux"):
+    for name in ("bronzage", "acne", "lissage", "cils", "sourcils", "cheveux", "autres"):
         v = getattr(s, name)
+        if v is None:
+            continue
         if not 0 <= v <= 4:
             sys.exit(f"{name} doit être entre 0 et 4")
     out = s.sortie or os.path.splitext(s.image)[0] + "_hypic.jpg"
