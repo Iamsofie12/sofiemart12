@@ -41,6 +41,8 @@ De `0` à `4`, par pas de 0,5 :
 | Glow ✨ (`--glow`) | lumière douce et diffuse sur la peau, effet peau lumineuse (détails conservés) |
 | Iris / éclat des yeux (`--iris`) | iris plus lumineux, plus colorés et plus nets ; blanc de l'œil un peu éclairci |
 | Highlights / brillance (`--highlights`) | renforce les points qui captent la lumière : haut des pommettes, arête du nez, arc de Cupidon, menton |
+| Gloss (`--gloss`) | lèvres brillantes, effet gloss : reflets des lèvres renforcés + reflet doux au centre de la lèvre du bas |
+| Liner lèvres (`--liner`) | contour des lèvres légèrement marqué, couleur naturelle (un ton rosé-brun plus profond que la lèvre) |
 | Maquillage (`--maquillage`) | blush léger sur les pommettes + contouring naturel sous les pommettes et sur les côtés du nez + petit éclat sur l'arête du nez |
 
 ## Utilisation
@@ -51,6 +53,7 @@ De `0` à `4`, par pas de 0,5 :
 Les zones non citées gardent leur valeur par défaut. Toujours rappeler en une ligne les réglages appliqués.
 
 ## Règles permanentes
+0. **Fossettes de Sofie : toujours protégées.** Elle les aime : jamais lissées, rebouchées ni couvertes par le contouring (le programme le fait automatiquement ; seuls les petits boutons ronds y sont enlevés).
 1. Bronzage homogène sur TOUTE la peau visible (visage, cou, décolleté, bras, mains, jambes), sans démarcation, sous-tons naturels, ombres et reflets cohérents avec la lumière.
 2. Acné traitée méticuleusement zone par zone (front, joues, menton, mâchoire, tempes).
 3. Interdits : modifier les traits, la forme des yeux, la morphologie, l'expression, les vêtements, le décor, le cadrage, la lumière générale. Aucun maquillage en dehors du mascara.
@@ -64,9 +67,9 @@ Les modèles de détection (visage + zones) se téléchargent tout seuls la prem
 
 Commande :
 ```
-python3 tools/hypic/hypic.py PHOTO --bronzage 1.5 --acne 4 --lissage 1 --cils 1 --sourcils 0.5 --cheveux 1 [--levres N --cernes N --dents N --maquillage N --glow N --iris N --highlights N] --comparer
+python3 tools/hypic/hypic.py PHOTO --bronzage 1.5 --acne 4 --lissage 1 --cils 1 --sourcils 0.5 --cheveux 1 [--levres N --gloss N --liner N --cernes N --dents N --maquillage N --glow N --iris N --highlights N] --comparer
 ```
-« tout à N » = TOUTES les zones à N, options comprises (lèvres, cernes, dents, maquillage, glow, iris, highlights).
+« tout à N » = TOUTES les zones à N, options comprises (lèvres, gloss, liner, cernes, dents, maquillage, glow, iris, highlights).
 
 Photo avec d'autres personnes : ajouter `--zone x0,y0,x1,y1` (fractions 0-1 de l'image, répétable) pour ne retoucher QUE Sofie (visage, peau, cheveux). Toujours vérifier s'il y a quelqu'un d'autre sur la photo.
 Les autres personnes reçoivent seulement un léger bronzage, par défaut **la moitié** de celui de Sofie (Sofie 2 → autres 1), pour que l'écart de teint ne se voie pas. Réglable avec `--autres 0-4` (`--autres 0` = ne pas les toucher du tout). Sofie peut dire « autres 1.5 » dans sa demande.
@@ -305,7 +308,7 @@ def bronzage(img, skin, level):
     return blend(img, out, skin)
 
 
-def acne(img, face, feat, fw, level):
+def acne(img, face, feat, fw, level, protect=None):
     if level <= 0:
         return img
     lab = to_lab(img)
@@ -345,6 +348,15 @@ def acne(img, face, feat, fw, level):
     fill = stats[1:, cv2.CC_STAT_AREA] / np.maximum(1, bw * bh)
     small = np.maximum(bw, bh) < fw / 25
     keep[1:] = (stats[1:, cv2.CC_STAT_AREA] < max_area) & (((elong < 4) & (fill > 0.3)) | small)
+    if protect is not None:
+        # zone des fossettes : on n'enlève que les petits boutons ronds, jamais le creux de la fossette
+        in_dimple = np.zeros(n, bool)
+        if n > 1:
+            pv = np.bincount(lab_cc.ravel(), weights=(protect > 0.3).ravel().astype(np.float64), minlength=n)
+            in_dimple = pv > 0
+        small_round = np.zeros(n, bool)
+        small_round[1:] = (stats[1:, cv2.CC_STAT_AREA] < (fw / 28) ** 2) & (elong < 2.2)
+        keep &= ~in_dimple | small_round
     spots = keep[lab_cc].astype(np.uint8)
     d = max(3, int(fw / 110)) | 1
     spots = cv2.dilate(spots, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (d, d)))
@@ -669,6 +681,74 @@ def dents(img, lm, fw, level):
     return blend(img, out, m)
 
 
+def fossettes_mask(shape, lm, fw):
+    """Zone des fossettes (à côté des coins de la bouche) : on les PROTÈGE, jamais lissées ni rebouchées."""
+    h, w = shape[:2]
+    m = np.zeros((h, w), np.float32)
+    center = (lm[61] + lm[291]) / 2
+    for corner, ok in zip((61, 291), visible_eyes(lm)):
+        if not ok:
+            continue
+        out_dir = lm[corner] - center
+        c = lm[corner] + out_dir * 0.55 + (lm[1] - lm[152]) * 0.03
+        cv2.ellipse(m, (int(c[0]), int(c[1])), (max(1, int(fw * 0.09)), max(1, int(fw * 0.12))), 0, 0, 360, 1.0, -1)
+    return gauss(m, fw * 0.03)
+
+
+def gloss(img, lm, fw, level):
+    """Effet gloss : lèvres plus brillantes (on renforce leurs reflets) + petit reflet doux au centre de la lèvre du bas."""
+    if level <= 0:
+        return img
+    k = level / 4.0
+    lips = np.clip(poly_mask(img.shape, lm[LIPS]) - poly_mask(img.shape, np.vstack([lm[LIP_IN_UP], lm[LIP_IN_LO][::-1]])), 0, 1)
+    if lips.sum() < 20:
+        return img
+    lips = gauss(lips, max(0.8, fw / 300))
+    lab = to_lab(img)
+    L, a, b = cv2.split(lab)
+    # reflets existants amplifiés
+    hp = np.clip(L - gauss(L, fw / 40), 0, None)
+    hp = np.clip(hp / (np.percentile(hp[lips > 0.5], 97) + 1e-6), 0, 1) if (lips > 0.5).any() else hp
+    # reflet doux au milieu de la lèvre du bas (là où la lumière tombe naturellement)
+    lo_mid = lm[14] + (lm[17] - lm[14]) * 0.4
+    spot = np.zeros(L.shape, np.float32)
+    mw = np.linalg.norm(lm[291] - lm[61])
+    cv2.ellipse(spot, (int(lo_mid[0]), int(lo_mid[1])), (max(1, int(mw * 0.16)), max(1, int(mw * 0.045))), 0, 0, 360, 1.0, -1)
+    spot = gauss(spot, mw * 0.04)
+    shine = np.clip(hp * 0.8 + spot * 0.6, 0, 1) * lips
+    L2 = L + (100 - L) * 0.45 * k * shine
+    # lèvres un peu plus "mouillées" : couleur légèrement plus riche
+    a2 = a * (1 + 0.12 * k * lips)
+    b2 = b * (1 + 0.05 * k * lips)
+    return from_lab(cv2.merge([L2, a2, b2]))
+
+
+def liner(img, lm, fw, level):
+    """Contour des lèvres légèrement marqué, couleur naturelle (un ton plus profond que la lèvre)."""
+    if level <= 0:
+        return img
+    k = level / 4.0
+    h, w = img.shape[:2]
+    mw = np.linalg.norm(lm[291] - lm[61])
+    if mw < 10:
+        return img
+    m = np.zeros((h, w), np.float32)
+    th = max(1, int(round(mw * 0.03)))
+    for idx in (LIP_OUT_UP, LIP_OUT_LO):
+        cv2.polylines(m, [np.round(lm[idx]).astype(np.int32)], False, 1.0, th, cv2.LINE_AA)
+    # plus discret aux coins de la bouche
+    corners = np.zeros((h, w), np.float32)
+    for c in (61, 291):
+        cv2.circle(corners, (int(lm[c][0]), int(lm[c][1])), max(1, int(mw * 0.08)), 1.0, -1)
+    m = gauss(m, th * 0.7) * (1 - 0.7 * gauss(corners, mw * 0.04))
+    lab = to_lab(img)
+    L, a, b = cv2.split(lab)
+    L2 = L * (1 - 0.24 * k * m)
+    a2 = a + 5.0 * k * m                                  # rosé-brun naturel
+    b2 = b + 1.5 * k * m
+    return from_lab(cv2.merge([L2, a2, b2]))
+
+
 def maquillage(img, lm, fw, face, level):
     """Maquillage très naturel : blush sur les pommettes, contouring léger sous les pommettes et sur les côtés du nez,
     petit éclat sur l'arête du nez."""
@@ -856,11 +936,14 @@ def retouche(path, out_path, s):
     skin = np.clip((conf[2] + conf[3]) * (1 - feat), 0, 1)
 
     if lm is not None:
-        r = acne(img, face, feat, fw, s.acne)
+        # fossettes : protégées (ni acné, ni lissage, ni contouring dessus)
+        dimples = fossettes_mask(img.shape, lm, fw)
+        face_nd = face * (1 - 0.9 * dimples)
+        r = acne(img, face, feat, fw, s.acne, protect=dimples)
         if isinstance(r, tuple):
             img, n = r
             report.append(f"Acné {s.acne} : {n} imperfections traitées + rougeurs unifiées")
-        img = lissage(img, face, fw, s.lissage)
+        img = lissage(img, face_nd, fw, s.lissage)
         report.append(f"Lissage {s.lissage}")
         img = cernes(img, lm, fw, face, s.cernes)
         report.append(f"Cernes {s.cernes}")
@@ -870,9 +953,13 @@ def retouche(path, out_path, s):
         report.append(f"Cils + mascara {s.cils}")
         img = dents(img, lm, fw, s.dents)
         report.append(f"Dents {s.dents}")
+        img = gloss(img, lm, fw, s.gloss)
+        report.append(f"Gloss {s.gloss}")
+        img = liner(img, lm, fw, s.liner)
+        report.append(f"Liner lèvres {s.liner}")
         img = levres(img, lm, fw, s.levres)
         report.append(f"Lèvres {s.levres}")
-        img = maquillage(img, lm, fw, face, s.maquillage)
+        img = maquillage(img, lm, fw, face_nd, s.maquillage)
         report.append(f"Maquillage {s.maquillage}")
         img = iris_eclat(img, lm, fw, s.iris)
         report.append(f"Iris / éclat des yeux {s.iris}")
@@ -911,7 +998,7 @@ def main():
     p.add_argument("-o", "--sortie")
     for name, default in (("bronzage", 1.5), ("acne", 4), ("lissage", 1), ("cils", 1), ("sourcils", 0.5), ("cheveux", 1),
                           ("levres", 0), ("cernes", 0), ("dents", 0), ("maquillage", 0),
-                          ("glow", 0), ("iris", 0), ("highlights", 0)):
+                          ("glow", 0), ("iris", 0), ("highlights", 0), ("gloss", 0), ("liner", 0)):
         p.add_argument(f"--{name}", type=float, default=default)
     p.add_argument("--zone", action="append", help="x0,y0,x1,y1 en fractions (0-1) : retoucher seulement cette zone (répétable)")
     p.add_argument("--autres", type=float, default=None,
