@@ -398,7 +398,7 @@ def sourcils(img, lm, fw, level):
     return out
 
 
-def cheveux(img, conf, fw, level):
+def cheveux(img, conf, fw, level, feat=None):
     """Cheveux plus lisses + suppression des petits cheveux qui dépassent sur le fond."""
     if level <= 0:
         return img
@@ -411,25 +411,67 @@ def cheveux(img, conf, fw, level):
 
     # 2) frisottis : fins cheveux isolés autour de la silhouette, sur le fond
     hb = (hair > 0.4).astype(np.uint8)
-    r_open = max(3, int(fw * (0.04 + 0.02 * min(level, 3)))) | 1
+    r_open = max(3, int(fw * (0.035 + 0.012 * min(level, 3)))) | 1
     main = cv2.morphologyEx(hb, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (r_open, r_open)))
     main = cv2.dilate(main, np.ones((3, 3), np.uint8))
-    reach = max(5, int(fw * (0.12 + 0.03 * level))) | 1
+    reach = max(5, int(fw * (0.12 + 0.045 * level))) | 1
     zone = cv2.dilate(hb, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (reach, reach))) & (1 - main)
     protect = (conf[2] + conf[3] + conf[4] + conf[5]) > 0.3
-    zone = (zone > 0) & ~protect
+    zone = (zone > 0) & ~protect & (hair < 0.7)          # cheveux sûrs (tresse, queue de cheval) jamais effacés
     if not zone.any():
         return out
-    k = max(5, int(fw / 35)) | 1
-    med = cv2.medianBlur(u8(out), min(k, 255) if k <= 5 else 5)
-    for _ in range(max(1, k // 5 - 1)):
-        med = cv2.medianBlur(med, 5)
-    med = med.astype(np.float32) / 255
+    # Décor chargé (roseaux, grillage, feuillage net) autour de la tête ? On ne touche pas au décor :
+    # mieux vaut garder quelques frisottis qu'abîmer l'arrière-plan.
+    g_ = cv2.cvtColor(out, cv2.COLOR_RGB2GRAY)
+    texture = np.abs(g_ - gauss(g_, 2.0))
+    far = cv2.dilate(hb, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (reach * 2 | 1,) * 2)) > 0
+    ring = far & ~(cv2.dilate(hb, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (reach,) * 2)) > 0) & ~protect
+    if ring.sum() > 50 and float(np.median(texture[ring])) > 0.0038:
+        return out
+    # fond reconstitué : un filtre médian assez large efface les fins cheveux (plus le niveau est haut, plus il est large)
+    # Le fond est reconstitué à partir du FOND uniquement (la personne est masquée puis bouchée),
+    # en basse résolution : les fins cheveux disparaissent et aucun halo de peau n'est créé.
+    h_, w_ = out.shape[:2]
+    sc = 4
+    small = cv2.resize(u8(out), (max(8, w_ // sc), max(8, h_ // sc)), interpolation=cv2.INTER_AREA)
+    person = ((main > 0) | protect).astype(np.uint8)
+    person = cv2.dilate(person, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5)))
+    ps = cv2.resize(person, (small.shape[1], small.shape[0]), interpolation=cv2.INTER_NEAREST)
+    ps = cv2.dilate(ps, np.ones((3, 3), np.uint8))
+    bg = cv2.inpaint(small, ps, 6, cv2.INPAINT_TELEA)
+    k = max(3, int(fw * (0.01 + 0.004 * level) )) | 1
+    bg = cv2.medianBlur(bg, min(k, 31))
+    med = cv2.resize(bg, (w_, h_), interpolation=cv2.INTER_CUBIC).astype(np.float32) / 255
+    med = np.clip(gauss(med, 2.0), 0, 1)
     diff = np.abs(cv2.cvtColor(out, cv2.COLOR_RGB2GRAY) - cv2.cvtColor(med, cv2.COLOR_RGB2GRAY))
     strands = (diff > max(0.012, 0.026 - 0.003 * level)) & zone
-    m = gauss(cv2.dilate(strands.astype(np.uint8), np.ones((3, 3), np.uint8)).astype(np.float32), 1.0)
+    it = 1 + int(level >= 3)
+    m = gauss(cv2.dilate(strands.astype(np.uint8), np.ones((3, 3), np.uint8), iterations=it).astype(np.float32), 1.0)
     m *= min(1.0, 0.55 + 0.2 * level)
-    return blend(out, med, m)
+    out = blend(out, med, m)
+
+    return out
+
+
+def matifiant(img, conf, fw, level):
+    """Effet cheveux non gras (comme après un shampoing sec) : on atténue la brillance huileuse,
+    surtout sur le dessus de la tête, sans éteindre les reflets naturels de la couleur."""
+    if level <= 0:
+        return img
+    k = level / 4.0
+    hair = gauss(cv2.erode((conf[1] > 0.5).astype(np.uint8), np.ones((3, 3), np.uint8)).astype(np.float32), 2)
+    if hair.max() <= 0:
+        return img
+    lab = to_lab(img)
+    L, a, b = cv2.split(lab)
+    base = gauss(L, fw / 25)
+    shine = np.clip(L - base - 1, 0, None)                # zones plus brillantes que le reste des cheveux
+    L2 = L - shine * (0.9 * k) * hair
+    # un aspect gras est aussi plus contrasté et "collé" : on adoucit légèrement le micro-contraste
+    soft = gauss(L2, max(1.0, fw / 300))
+    L2 = L2 + (soft - L2) * (0.35 * k) * hair
+    sat = 1 - 0.08 * k * hair
+    return from_lab(cv2.merge([L2, a * sat, b * sat]))
 
 
 LIP_OUT_UP = [61, 185, 40, 39, 37, 0, 267, 269, 270, 409, 291]
@@ -871,7 +913,9 @@ def retouche(path, out_path, s):
         report.append(f"Maquillage {s.maquillage}")
         img = iris_eclat(img, lm, fw, s.iris)
         report.append(f"Iris / éclat des yeux {s.iris}")
-    img = cheveux(img, conf, fw, s.cheveux)
+    img = cheveux(img, conf, fw, s.cheveux, feat if lm is not None else None)
+    img = matifiant(img, conf, fw, s.matifiant)
+    report.append(f"Cheveux non gras {s.matifiant}")
     report.append(f"Cheveux {s.cheveux}")
     img = bronzage(img, skin, s.bronzage)
     if lm is not None and s.bronzage > 0:
@@ -909,7 +953,7 @@ def main():
     p.add_argument("-o", "--sortie")
     for name, default in (("bronzage", 1.5), ("acne", 4), ("lissage", 1), ("cils", 1), ("sourcils", 0.5), ("cheveux", 1),
                           ("levres", 0), ("cernes", 0), ("dents", 0), ("maquillage", 0),
-                          ("glow", 0), ("iris", 0), ("highlights", 0), ("gloss", 0), ("liner", 0), ("teinte", 0)):
+                          ("glow", 0), ("iris", 0), ("highlights", 0), ("gloss", 0), ("liner", 0), ("teinte", 0), ("matifiant", 1)):
         p.add_argument(f"--{name}", type=float, default=default)
     p.add_argument("--zone", action="append", help="x0,y0,x1,y1 en fractions (0-1) : retoucher seulement cette zone (répétable)")
     p.add_argument("--autres", type=float, default=None,
