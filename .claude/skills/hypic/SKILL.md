@@ -38,6 +38,9 @@ De `0` à `4`, par pas de 0,5 :
 | Lèvres (`--levres`) | lèvre du haut et du bas un peu plus pulpeuses (épaissies vers l'extérieur ; sourire et dents ne bougent pas) |
 | Cernes (`--cernes`) | poches et cernes éclaircies vers le teint de la pommette + relief lissé |
 | Dents (`--dents`) | blanchiment des dents uniquement (pas les gencives) ; 4 = blanc éclatant mais naturel |
+| Glow ✨ (`--glow`) | lumière douce et diffuse sur la peau, effet peau lumineuse (détails conservés) |
+| Iris / éclat des yeux (`--iris`) | iris plus lumineux, plus colorés et plus nets ; blanc de l'œil un peu éclairci |
+| Highlights / brillance (`--highlights`) | renforce les points qui captent la lumière : haut des pommettes, arête du nez, arc de Cupidon, menton |
 | Maquillage (`--maquillage`) | blush léger sur les pommettes + contouring naturel sous les pommettes et sur les côtés du nez + petit éclat sur l'arête du nez |
 
 ## Utilisation
@@ -61,9 +64,9 @@ Les modèles de détection (visage + zones) se téléchargent tout seuls la prem
 
 Commande :
 ```
-python3 tools/hypic/hypic.py PHOTO --bronzage 1.5 --acne 4 --lissage 1 --cils 1 --sourcils 0.5 --cheveux 1 [--levres N --cernes N --dents N --maquillage N] --comparer
+python3 tools/hypic/hypic.py PHOTO --bronzage 1.5 --acne 4 --lissage 1 --cils 1 --sourcils 0.5 --cheveux 1 [--levres N --cernes N --dents N --maquillage N --glow N --iris N --highlights N] --comparer
 ```
-« tout à N » = TOUTES les zones à N, options comprises (lèvres, cernes, dents, maquillage).
+« tout à N » = TOUTES les zones à N, options comprises (lèvres, cernes, dents, maquillage, glow, iris, highlights).
 
 Photo avec d'autres personnes : ajouter `--zone x0,y0,x1,y1` (fractions 0-1 de l'image, répétable) pour ne retoucher QUE Sofie (visage, peau, cheveux). Toujours vérifier s'il y a quelqu'un d'autre sur la photo.
 Les autres personnes reçoivent seulement un léger bronzage, par défaut **la moitié** de celui de Sofie (Sofie 2 → autres 1), pour que l'écart de teint ne se voie pas. Réglable avec `--autres 0-4` (`--autres 0` = ne pas les toucher du tout). Sofie peut dire « autres 1.5 » dans sa demande.
@@ -715,6 +718,100 @@ def maquillage(img, lm, fw, face, level):
     return from_lab(cv2.merge([L, a, b]))
 
 
+IRIS_R, IRIS_L = [468, 469, 470, 471, 472], [473, 474, 475, 476, 477]
+
+
+def iris_eclat(img, lm, fw, level):
+    """Éclat des yeux : iris plus lumineux, plus colorés et plus nets ; blanc de l'œil légèrement éclairci."""
+    if level <= 0 or lm.shape[0] < 478:
+        return img
+    k = level / 4.0
+    h, w = img.shape[:2]
+    out = img.copy()
+    for (up, lo, ir), ok in zip(((EYE_R_UP, EYE_R_LO, IRIS_R), (EYE_L_UP, EYE_L_LO, IRIS_L)), visible_eyes(lm)):
+        if not ok:
+            continue
+        opening = poly_mask(img.shape, np.vstack([lm[up], lm[lo][::-1]]))
+        if opening.sum() < 15:
+            continue
+        c = lm[ir[0]]
+        r = float(np.mean(np.linalg.norm(lm[ir[1:]] - c, axis=1)))
+        if r < 2:
+            continue
+        x0, y0 = int(max(0, c[0] - 3 * r)), int(max(0, c[1] - 3 * r))
+        x1, y1 = int(min(w, c[0] + 3 * r)), int(min(h, c[1] + 3 * r))
+        yy, xx = np.mgrid[y0:y1, x0:x1].astype(np.float32)
+        dist = np.hypot(xx - c[0], yy - c[1])
+        op = gauss(opening[y0:y1, x0:x1], max(0.6, r * 0.08))
+        ring = np.clip((r * 1.02 - dist) / max(1.0, r * 0.12), 0, 1)          # iris
+        ring *= np.clip((dist - r * 0.32) / max(1.0, r * 0.12), 0, 1)         # sans la pupille
+        ring *= op
+        sclera = np.clip((dist - r * 1.05) / max(1.0, r * 0.2), 0, 1) * op
+        patch = img[y0:y1, x0:x1]
+        lab = to_lab(patch)
+        L, a, b = cv2.split(lab)
+        # iris : plus clair, plus de couleur, plus de détail
+        detail = L - gauss(L, max(0.8, r * 0.15))
+        L_i = L * (1 + 0.3 * k) + 7 * k + detail * 1.3 * k
+        a_i, b_i = a * (1 + 0.55 * k), b * (1 + 0.55 * k)
+        # blanc de l'œil : un peu plus clair, moins rouge/jaune
+        L_s = L + (100 - L) * 0.16 * k
+        a_s, b_s = a * (1 - 0.35 * k), b * (1 - 0.25 * k)
+        Lr = L + (L_i - L) * ring + (L_s - L) * sclera
+        ar = a + (a_i - a) * ring + (a_s - a) * sclera
+        br = b + (b_i - b) * ring + (b_s - b) * sclera
+        out[y0:y1, x0:x1] = from_lab(cv2.merge([Lr.astype(np.float32), ar.astype(np.float32), br.astype(np.float32)]))
+    return out
+
+
+def glow(img, face, skin, fw, level):
+    """Glow : lumière douce et diffuse sur la peau (effet peau lumineuse), sans perdre les détails."""
+    if level <= 0:
+        return img
+    k = level / 4.0
+    soft = gauss(img, fw / 22)
+    lum = cv2.cvtColor(soft, cv2.COLOR_RGB2GRAY)[..., None]
+    # écran doux : les zones déjà claires diffusent un peu de lumière autour d'elles
+    screen = 1 - (1 - img) * (1 - soft * (0.35 * k) * np.clip(lum * 1.3, 0, 1))
+    warm = screen * np.array([1.0 + 0.012 * k, 1.0, 1.0 - 0.015 * k], np.float32)
+    mask = np.clip(face + 0.5 * np.clip(skin - face, 0, 1), 0, 1)
+    return blend(img, np.clip(warm, 0, 1), mask * min(1.0, 0.5 + 0.25 * level))
+
+
+def highlights(img, lm, fw, face, level):
+    """Brillance / highlights : renforce les points qui captent déjà la lumière (pommettes, arête du nez,
+    arc de Cupidon, menton, arcade) — on amplifie la lumière existante au lieu de peindre des taches."""
+    if level <= 0:
+        return img
+    h, w = img.shape[:2]
+    k = level / 4.0
+    lab = to_lab(img)
+    L = lab[..., 0]
+    base = gauss(L, fw / 60)
+    hp = np.clip(base - gauss(L, fw / 10), 0, None)       # zones plus claires que leur entourage
+    hp = hp / (np.percentile(hp[face > 0.5], 99) + 1e-6) if (face > 0.5).any() else hp
+    hp = np.clip(hp, 0, 1)
+
+    def blob(p, rx, ry):
+        m = np.zeros((h, w), np.float32)
+        cv2.ellipse(m, (int(p[0]), int(p[1])), (max(1, int(rx)), max(1, int(ry))), 0, 0, 360, 1.0, -1)
+        return gauss(m, max(rx, ry) * 0.6)
+
+    zones = np.zeros((h, w), np.float32)
+    vis = visible_eyes(lm)
+    for (eye_out, side), ok in zip(((33, 234), (263, 454)), vis):
+        if ok:                                            # haut des pommettes
+            zones = np.maximum(zones, blob(0.55 * lm[eye_out] + 0.25 * lm[side] + 0.2 * lm[1] + (lm[1] - lm[168]) * 0.15, fw * 0.1, fw * 0.06))
+    zones = np.maximum(zones, blob((lm[6] + lm[195]) / 2, fw * 0.03, fw * 0.12))     # arête du nez
+    zones = np.maximum(zones, blob(lm[0] + (lm[0] - lm[13]) * 0.6, fw * 0.04, fw * 0.02))  # arc de Cupidon
+    zones = np.maximum(zones, blob(lm[152] + (lm[17] - lm[152]) * 0.4, fw * 0.06, fw * 0.04))  # menton
+    weight = np.clip(hp * (0.4 + 0.6 * zones) + 0.25 * zones, 0, 1) * np.clip(face * 1.3, 0, 1)
+    lab[..., 0] = L + (100 - L) * (0.22 * k) * weight
+    lab[..., 1] *= 1 - 0.08 * k * weight
+    lab[..., 2] *= 1 - 0.05 * k * weight
+    return from_lab(lab)
+
+
 # --------------------------------------------------------------- programme
 def retouche(path, out_path, s):
     pil = ImageOps.exif_transpose(Image.open(path)).convert("RGB")
@@ -764,10 +861,17 @@ def retouche(path, out_path, s):
         report.append(f"Lèvres {s.levres}")
         img = maquillage(img, lm, fw, face, s.maquillage)
         report.append(f"Maquillage {s.maquillage}")
+        img = iris_eclat(img, lm, fw, s.iris)
+        report.append(f"Iris / éclat des yeux {s.iris}")
     img = cheveux(img, conf, fw, s.cheveux)
     report.append(f"Cheveux {s.cheveux}")
     img = bronzage(img, skin, s.bronzage)
     report.append(f"Bronzage {s.bronzage}")
+    if lm is not None:
+        img = highlights(img, lm, fw, face, s.highlights)
+        report.append(f"Highlights {s.highlights}")
+        img = glow(img, face, skin, fw, s.glow)
+        report.append(f"Glow {s.glow}")
 
     if zone is not None:
         img = blend(orig, img, zone)
@@ -793,7 +897,8 @@ def main():
     p.add_argument("image")
     p.add_argument("-o", "--sortie")
     for name, default in (("bronzage", 1.5), ("acne", 4), ("lissage", 1), ("cils", 1), ("sourcils", 0.5), ("cheveux", 1),
-                          ("levres", 0), ("cernes", 0), ("dents", 0), ("maquillage", 0)):
+                          ("levres", 0), ("cernes", 0), ("dents", 0), ("maquillage", 0),
+                          ("glow", 0), ("iris", 0), ("highlights", 0)):
         p.add_argument(f"--{name}", type=float, default=default)
     p.add_argument("--zone", action="append", help="x0,y0,x1,y1 en fractions (0-1) : retoucher seulement cette zone (répétable)")
     p.add_argument("--autres", type=float, default=None,
