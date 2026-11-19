@@ -9,27 +9,41 @@ description: Retouche photo portrait de Sofie selon ses critères standards (bro
 Retouche **naturelle et invisible** : la photo doit rester spontanée, on doit la reconnaître à 100 %.
 Toujours partir de l'image originale (jamais d'une version déjà retouchée, sauf demande explicite).
 
-## Arguments (optionnels)
-`/hypic [niveau de bronzage] [ajustements libres]`
-- Niveau de bronzage :
-  | Code | Niveau | Consigne |
-  |---|---|---|
-  | `0` | aucun | teint d'origine |
-  | `1` | léger | peau à peine dorée, effet "quelques jours au soleil" |
-  | `1.5` | **léger-moyen (DÉFAUT actuel)** | doré chaud et uniforme, effet "une semaine de vacances" |
-  | `2` | moyen | hâle bien marqué, doré-caramel |
-  | `3` | bronzé | hâle profond, caramel |
-  | `4` | très bronzé | hâle très soutenu, sans virer orange |
-- Ajustements libres : ex. "cheveux plus lisses", "pas de mascara", "plus de lissage".
+## Échelle d'intensité (la même pour TOUTES les zones)
+De `0` à `4`, par pas de 0,5 :
+| Note | Intensité |
+|---|---|
+| `0` | aucune retouche |
+| `1` | léger |
+| `1.5` | léger-moyen |
+| `2` | moyen |
+| `2.5` | moyen-fort |
+| `3` | fort |
+| `3.5` | fort+ |
+| `4` | maximum (toujours naturel) |
 
-## Critères standards (appliqués par défaut)
-1. **Bronzage** au niveau demandé (défaut 1.5), homogène sur TOUTES les zones de peau visibles (visage, cou, décolleté, bras, mains, jambes) — même teinte partout, aucune démarcation, pas d'orange, sous-tons naturels conservés, ombres et reflets cohérents avec la lumière de la photo.
-2. **Acné** : supprimer chaque bouton, rougeur et marque d'acné, surtout sur le visage (front, joues, menton, mâchoire, tempes). Méticuleux, zone par zone.
-3. **Lissage de peau très léger** : garder le grain et les pores, aucun effet plastique / filtre.
-4. **Yeux** : cils légèrement allongés et densifiés + une touche de mascara noir discrète. Ne pas changer la forme, la taille ou la couleur des yeux.
-5. **Sourcils** : affinés très très légèrement (nettoyer les poils épars), forme naturelle conservée.
-6. **Cheveux** : lisses et doux, suppression des petits cheveux qui partent dans tous les sens (frisottis), brillance légère. Volume, longueur, couleur et coiffure inchangés. Intensité légère, ajustable selon l'image.
-7. **Interdits** : ne pas modifier les traits du visage, la morphologie, le corps, l'expression, les vêtements, le décor, le cadrage ni la lumière générale. Pas de maquillage ajouté en dehors du mascara.
+## Réglages par défaut (profil standard Sofie)
+| Zone | Défaut | Ce que fait la note |
+|---|---|---|
+| Bronzage | `1.5` | 1 = à peine doré · 2 = doré-caramel · 3 = bronzé caramel · 4 = très bronzé, jamais orange |
+| Acné | `4` | 4 = plus aucun bouton, rougeur ni marque visible · plus bas = on garde quelques marques légères |
+| Lissage peau | `1` | toujours grain et pores conservés ; 4 = peau très unifiée mais pas plastique |
+| Cils + mascara | `1` | 1 = cils un peu plus longs, mascara discret · 4 = cils nettement allongés, mascara marqué |
+| Sourcils | `0.5` | 0.5 = à peine nettoyés · 4 = nettement affinés, forme gardée |
+| Cheveux | `1` | 1 = frisottis supprimés, effet doux · 4 = très lisses et brillants, coiffure inchangée |
+
+## Utilisation
+`/hypic [zone note] [zone note] ... [consignes libres]`
+- `/hypic` → profil standard
+- `/hypic bronzage 2.5 cheveux 2` → change seulement ces zones
+- `/hypic bronzage 3 mascara 0 "garde la mèche sur le front"`
+Les zones non citées gardent leur valeur par défaut. Toujours rappeler en une ligne les réglages appliqués.
+
+## Règles permanentes
+1. Bronzage homogène sur TOUTE la peau visible (visage, cou, décolleté, bras, mains, jambes), sans démarcation, sous-tons naturels, ombres et reflets cohérents avec la lumière.
+2. Acné traitée méticuleusement zone par zone (front, joues, menton, mâchoire, tempes).
+3. Interdits : modifier les traits, la forme des yeux, la morphologie, l'expression, les vêtements, le décor, le cadrage, la lumière générale. Aucun maquillage en dehors du mascara.
+4. Partir toujours de l'original, sauf demande explicite.
 
 ## Outil
 Higgsfield (`mcp__higgsfield_ia__*`), modèle par défaut `gpt_image_2_6` (édition à partir d'une image de référence). Vérifier les rôles de médias avec `models_explore` si besoin.
@@ -37,7 +51,7 @@ Higgsfield (`mcp__higgsfield_ia__*`), modèle par défaut `gpt_image_2_6` (édit
 ## Déroulé
 1. **Récupérer la photo** : si le fichier est lisible dans l'environnement → `media_upload` + PUT + `media_confirm`. Sinon → `media_upload_widget` (seul outil du tour) et attendre l'upload.
 2. **Lire les dimensions** de l'image originale (garder le même ratio d'aspect en sortie).
-3. **Construire le prompt** à partir du modèle ci-dessous (niveau de bronzage + ajustements).
+3. **Construire le prompt** à partir du modèle ci-dessous, en traduisant chaque note (0-4) en intensité : 0.5-1 = "very subtle", 1.5-2 = "subtle to moderate", 2.5-3 = "noticeable", 3.5-4 = "strong but natural". Une zone à 0 = la retirer du prompt.
 4. **Coût** : `estimate_image_cost` → annoncer le coût en crédits. Lancer directement si c'est l'usage habituel (1 image) ; demander validation si plusieurs variantes ou upscale.
 5. **Générer** (`generate_image`, count 1 par défaut ; 2 si Sofie veut comparer).
 6. **Vérifier** le résultat avant de le présenter : ressemblance, acné vraiment partie, bronzage homogène, pas d'effet plastique, cils discrets. Si un point rate, le dire honnêtement et proposer une correction ciblée.
@@ -62,7 +76,7 @@ exactly the same. Photorealistic, natural, high resolution, no filter look.
 - Do not add any other makeup. Do not alter anything else.
 {EXTRA_ADJUSTMENTS}
 ```
-Descriptions de bronzage : 1 = "very light, barely sun-kissed golden tan" · 1.5 = "light-to-medium natural golden tan, like after one week of vacation" · 2 = "medium golden-caramel tan" · 3 = "deep natural caramel tan" · 4 = "very deep, rich bronze tan, natural, never orange".
+Descriptions de bronzage : 1 = "very light, barely sun-kissed golden tan" · 1.5 = "light-to-medium natural golden tan, like after one week of vacation" · 2 = "medium golden-caramel tan" · 2.5 = "medium-to-deep golden caramel tan" · 3 = "deep natural caramel tan" · 4 = "very deep, rich bronze tan, natural, never orange".
 
 ## Limites à rappeler (une fois, brièvement)
 - L'IA régénère l'image : de très légères différences de détails sont possibles. Toujours garder l'original.
