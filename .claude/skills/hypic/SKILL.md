@@ -28,9 +28,17 @@ De `0` à `4`, par pas de 0,5 :
 | Bronzage | `1.5` | 1 = à peine doré · 2 = doré-caramel · 3 = bronzé caramel · 4 = très bronzé, jamais orange |
 | Acné | `4` | 4 = plus aucun bouton, rougeur ni marque visible · plus bas = on garde quelques marques légères |
 | Lissage peau | `1` | toujours grain et pores conservés ; 4 = peau très unifiée mais pas plastique |
-| Cils + mascara | `1` | 1 = cils un peu plus longs, mascara discret · 4 = cils nettement allongés, mascara marqué |
-| Sourcils | `0.5` | 0.5 = à peine nettoyés · 4 = nettement affinés, forme gardée |
-| Cheveux | `1` | 1 = frisottis supprimés, effet doux · 4 = très lisses et brillants, coiffure inchangée |
+| Cils + mascara | `1` | 1 = cils plus longs, mascara visible mais naturel · 4 = cils nettement allongés, mascara marqué |
+| Sourcils | `0.5` | 0.5 = nettoyés · 2 = affinés · 4 = nettement affinés, forme gardée |
+| Cheveux | `1` | 1 = frisottis supprimés (déjà bien visible), effet doux · 4 = très lisses, coiffure inchangée |
+
+### Options (désactivées par défaut, `0`, à activer sur demande)
+| Zone | Ce que fait la note |
+|---|---|
+| Lèvres (`--levres`) | lèvre du haut et du bas un peu plus pulpeuses (épaissies vers l'extérieur ; sourire et dents ne bougent pas) |
+| Cernes (`--cernes`) | poches et cernes éclaircies vers le teint de la pommette + relief lissé |
+| Dents (`--dents`) | blanchiment des dents uniquement (pas les gencives) ; 4 = blanc éclatant mais naturel |
+| Maquillage (`--maquillage`) | blush léger sur les pommettes + contouring naturel sous les pommettes et sur les côtés du nez + petit éclat sur l'arête du nez |
 
 ## Utilisation
 `/hypic [zone note] [zone note] ... [consignes libres]`
@@ -53,7 +61,10 @@ Les modèles de détection (visage + zones) se téléchargent tout seuls la prem
 
 Commande :
 ```
-python3 tools/hypic/hypic.py PHOTO --bronzage 1.5 --acne 4 --lissage 1 --cils 1 --sourcils 0.5 --cheveux 1 --comparer
+python3 tools/hypic/hypic.py PHOTO --bronzage 1.5 --acne 4 --lissage 1 --cils 1 --sourcils 0.5 --cheveux 1 [--levres N --cernes N --dents N --maquillage N] --comparer
+```
+« tout à N » = TOUTES les zones à N, options comprises (lèvres, cernes, dents, maquillage).
+```
 ```
 Photo avec d'autres personnes : ajouter `--zone x0,y0,x1,y1` (fractions 0-1 de l'image, répétable) pour ne retoucher QUE Sofie (visage, peau, cheveux). Toujours vérifier s'il y a quelqu'un d'autre sur la photo.
 Les autres personnes reçoivent seulement un léger bronzage, par défaut **la moitié** de celui de Sofie (Sofie 2 → autres 1), pour que l'écart de teint ne se voie pas. Réglable avec `--autres 0-4` (`--autres 0` = ne pas les toucher du tout). Sofie peut dire « autres 1.5 » dans sa demande.
@@ -86,6 +97,7 @@ Ce que fait le programme, zone par zone :
 - Cils : effet "mascara + légèrement plus longs", pas de faux cils dessinés.
 - Frisottis : supprimés surtout sur fond uni ; sur fond chargé, l'effet est plus léger.
 - Petits visages (photos en pied) : détectés grâce à un zoom automatique.
+- Visage de profil : seuls l'œil, le sourcil et la joue visibles sont retouchés (pas de contouring du nez).
 - Visage non détecté (de dos, très flou) : seuls bronzage et cheveux s'appliquent.
 
 ## Code du programme (hypic.py)
@@ -360,13 +372,23 @@ def lissage(img, face, fw, level):
     return blend(img, np.clip(out, 0, 1), face)
 
 
+def visible_eyes(lm):
+    """Visage de profil : l'œil du fond paraît beaucoup plus étroit. On ne retouche que les yeux bien visibles."""
+    wr = np.linalg.norm(lm[133] - lm[33])
+    wl = np.linalg.norm(lm[362] - lm[263])
+    m = max(wr, wl, 1e-6)
+    return wr / m > 0.62, wl / m > 0.62
+
+
 def _eye_frame(lm, up):
     p0, p1 = lm[up[0]], lm[up[-1]]
     ux = (p1 - p0) / (np.linalg.norm(p1 - p0) + 1e-6)
     vy = np.array([-ux[1], ux[0]])
-    # "haut" de l'œil = côté où se trouve la paupière supérieure
+    # "haut" de l'œil = côté du sourcil (repère fiable même de profil)
     mid = lm[up].mean(0)
-    if np.dot(mid - (p0 + p1) / 2, vy) > 0:
+    brows = [lm[BROW_R].mean(0), lm[BROW_L].mean(0)]
+    brow = min(brows, key=lambda b: np.linalg.norm(b - mid))
+    if np.dot(brow - mid, vy) < 0:
         vy = -vy
     return p0, ux, vy
 
@@ -377,7 +399,10 @@ def cils(img, lm, fw, level):
         return img
     out = img.copy()
     h, w = img.shape[:2]
-    for up, lo in ((EYE_R_UP, EYE_R_LO), (EYE_L_UP, EYE_L_LO)):
+    vis = visible_eyes(lm)
+    for (up, lo), ok in zip(((EYE_R_UP, EYE_R_LO), (EYE_L_UP, EYE_L_LO)), vis):
+        if not ok:
+            continue
         p0, ux, vy = _eye_frame(lm, up)
         width = np.linalg.norm(lm[up[-1]] - lm[up[0]])
         eye_h = np.linalg.norm(lm[up[4]] - lm[lo[4]])
@@ -402,7 +427,7 @@ def cils(img, lm, fw, level):
         inner_is_start = np.linalg.norm(lm[up[0]] - lm[1]) < np.linalg.norm(lm[up[-1]] - lm[1])
         tout = 1 - t if inner_is_start else t
         along = np.clip(np.sin(np.pi * np.clip((U + 0.05 * width) / (1.1 * width), 0, 1)), 0, 1) * (0.7 + 0.5 * tout)
-        g = min(0.45, 0.13 * level) * along
+        g = min(0.6, 0.2 * level) * along
         inside = (d > 0) & (d < Z)
         dsrc = np.where(inside, d / (1 + g * (1 - d / Z)), d)
         Vsrc = Vlid + dsrc
@@ -414,11 +439,11 @@ def cils(img, lm, fw, level):
         lab = to_lab(patch)
         L = lab[..., 0]
         Lloc = gauss(L, max(2.0, eye_h / 3))
-        lash = np.clip((Lloc - L) / 12, 0, 1)
+        lash = np.clip((Lloc - L) / 9, 0, 1)
         band = np.clip(1 - np.abs(d - 0.25 * Z) / (0.45 * Z), 0, 1) * (along > 0.05)
         line = np.clip(1 - np.abs(d) / max(1.5, eye_h * 0.09), 0, 1) * np.clip(along, 0, 1)
-        dark = (0.24 * level) * lash * band + (0.08 * level) * line
-        dark = np.clip(dark, 0, 0.6)
+        dark = (0.36 * level) * lash * band + (0.12 * level) * line
+        dark = np.clip(dark, 0, 0.7)
         lab[..., 0] = L * (1 - dark)
         lab[..., 1] *= 1 - dark
         lab[..., 2] *= 1 - dark
@@ -436,23 +461,25 @@ def sourcils(img, lm, fw, level):
         return img
     out = img
     L = to_lab(img)[..., 0]
-    for idx in (BROW_R, BROW_L):
+    for idx, ok in zip((BROW_R, BROW_L), visible_eyes(lm)):
+        if not ok:
+            continue
         pts = lm[idx]
         c = pts.mean(0)
-        core_pts = c + (pts - c) * np.array([1.0, 1 - 0.07 * level])
+        core_pts = c + (pts - c) * np.array([1.0, 1 - 0.11 * level])
         core = poly_mask(img.shape, core_pts)
         thick = max(3.0, np.ptp(pts[:, 1]))
-        k = max(3, int(thick * (0.5 + 0.15 * level))) | 1
+        k = max(3, int(thick * (0.6 + 0.2 * level))) | 1
         around = cv2.dilate(poly_mask(img.shape, pts), cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (k, k)))
         ring = np.clip(around - cv2.dilate(core, np.ones((3, 3), np.uint8)), 0, 1)
         skinL = cv2.medianBlur(u8(L / 100), max(5, int(thick) | 1)).astype(np.float32) / 255 * 100
-        stray = ((skinL - L) > 4) & (ring > 0)
+        stray = ((skinL - L) > 3) & (ring > 0)
         if not stray.any():
             continue
         filled = cv2.inpaint(u8(out), stray.astype(np.uint8), max(3, int(thick / 3)), cv2.INPAINT_TELEA).astype(np.float32) / 255
         g = max(1.0, fw / 400)
         filled = gauss(filled, g) + (out - gauss(out, g)) * 0.6
-        m = gauss(stray.astype(np.float32), 1.0) * min(1.0, 0.45 * level)
+        m = gauss(stray.astype(np.float32), 1.0) * min(1.0, 0.3 + 0.35 * level)
         out = blend(out, np.clip(filled, 0, 1), m)
     return out
 
@@ -470,10 +497,10 @@ def cheveux(img, conf, fw, level):
 
     # 2) frisottis : fins cheveux isolés autour de la silhouette, sur le fond
     hb = (hair > 0.4).astype(np.uint8)
-    r_open = max(3, int(fw * 0.035 * min(level, 3))) | 1
+    r_open = max(3, int(fw * (0.04 + 0.02 * min(level, 3)))) | 1
     main = cv2.morphologyEx(hb, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (r_open, r_open)))
     main = cv2.dilate(main, np.ones((3, 3), np.uint8))
-    reach = max(5, int(fw * 0.10)) | 1
+    reach = max(5, int(fw * (0.12 + 0.03 * level))) | 1
     zone = cv2.dilate(hb, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (reach, reach))) & (1 - main)
     protect = (conf[2] + conf[3] + conf[4] + conf[5]) > 0.3
     zone = (zone > 0) & ~protect
@@ -485,10 +512,208 @@ def cheveux(img, conf, fw, level):
         med = cv2.medianBlur(med, 5)
     med = med.astype(np.float32) / 255
     diff = np.abs(cv2.cvtColor(out, cv2.COLOR_RGB2GRAY) - cv2.cvtColor(med, cv2.COLOR_RGB2GRAY))
-    strands = (diff > 0.03) & zone
+    strands = (diff > max(0.012, 0.026 - 0.003 * level)) & zone
     m = gauss(cv2.dilate(strands.astype(np.uint8), np.ones((3, 3), np.uint8)).astype(np.float32), 1.0)
-    m *= min(1.0, 0.4 * level)
+    m *= min(1.0, 0.55 + 0.2 * level)
     return blend(out, med, m)
+
+
+LIP_OUT_UP = [61, 185, 40, 39, 37, 0, 267, 269, 270, 409, 291]
+LIP_OUT_LO = [61, 146, 91, 181, 84, 17, 314, 405, 321, 375, 291]
+LIP_IN_UP = [78, 191, 80, 81, 82, 13, 312, 311, 310, 415, 308]
+LIP_IN_LO = [78, 95, 88, 178, 87, 14, 317, 402, 318, 324, 308]
+
+
+def levres(img, lm, fw, level):
+    """Lèvres plus pulpeuses : chaque lèvre est épaissie vers l'extérieur, depuis sa ligne intérieure
+    (la bouche, les dents et le sourire ne bougent pas)."""
+    if level <= 0:
+        return img
+    h, w = img.shape[:2]
+    p0, p1 = lm[61], lm[291]
+    width = np.linalg.norm(p1 - p0)
+    if width < 8:
+        return img
+    ux = (p1 - p0) / width
+    vy = np.array([ux[1], -ux[0]])                       # vers le haut (vers le nez)
+    if np.dot(lm[1] - p0, vy) < 0:
+        vy = -vy
+
+    def curve(idx):
+        pu = (lm[idx] - p0) @ ux
+        pv = (lm[idx] - p0) @ vy
+        o = np.argsort(pu)
+        return pu[o], pv[o]
+
+    ou_u, ou_v = curve(LIP_OUT_UP); iu_u, iu_v = curve(LIP_IN_UP)
+    ol_u, ol_v = curve(LIP_OUT_LO); il_u, il_v = curve(LIP_IN_LO)
+    pad = width * 0.6
+    allp = lm[LIP_OUT_UP + LIP_OUT_LO]
+    x0, y0 = [int(max(0, v - pad)) for v in allp.min(0)]
+    x1, y1 = int(min(w, allp[:, 0].max() + pad)), int(min(h, allp[:, 1].max() + pad))
+    yy, xx = np.mgrid[y0:y1, x0:x1].astype(np.float32)
+    rel = np.stack([xx - p0[0], yy - p0[1]], -1)
+    U, V = rel @ ux, rel @ vy
+    Vi_u, Vo_u = np.interp(U, iu_u, iu_v), np.interp(U, ou_u, ou_v)
+    Vi_l, Vo_l = np.interp(U, il_u, il_v), np.interp(U, ol_u, ol_v)
+    t_u = np.maximum(Vo_u - Vi_u, width * 0.03)
+    t_l = np.maximum(Vi_l - Vo_l, width * 0.03)
+    along = np.clip(np.sin(np.pi * np.clip((U + 0.04 * width) / (1.08 * width), 0, 1)), 0, 1) ** 0.6
+    g = 0.075 * level * along
+
+    Vsrc = V.copy()
+    du = V - Vi_u                                         # au-dessus de la ligne intérieure du haut
+    Zu = t_u * 2.2
+    m_u = (du > 0) & (du < Zu)
+    Vsrc = np.where(m_u, Vi_u + du / (1 + g * (1 - du / Zu)), Vsrc)
+    dl = Vi_l - V                                         # en dessous de la ligne intérieure du bas
+    Zl = t_l * 2.2
+    m_l = (dl > 0) & (dl < Zl)
+    Vsrc = np.where(m_l, Vi_l - dl / (1 + g * (1 - dl / Zl)), Vsrc)
+    src = (p0 + U[..., None] * ux + Vsrc[..., None] * vy).astype(np.float32)
+    patch = cv2.remap(img, src[..., 0], src[..., 1], cv2.INTER_CUBIC, borderMode=cv2.BORDER_REFLECT)
+    out = img.copy()
+    out[y0:y1, x0:x1] = np.clip(patch, 0, 1)
+    return out
+
+
+def cernes(img, lm, fw, face, level):
+    """Atténue poches et cernes : éclaircit l'ombre sous l'œil vers le teint de la pommette et lisse le relief."""
+    if level <= 0:
+        return img
+    h, w = img.shape[:2]
+    k = min(1.0, 0.3 * level)
+    lab = to_lab(img)
+    out_lab = lab.copy()
+    total = np.zeros((h, w), np.float32)
+    vis = visible_eyes(lm)
+    for (up, lo), ok in zip(((EYE_R_UP, EYE_R_LO), (EYE_L_UP, EYE_L_LO)), vis):
+        if not ok:
+            continue
+        p0, ux, vy = _eye_frame(lm, up)
+        width = np.linalg.norm(lm[up[-1]] - lm[up[0]])
+        if width < 6:
+            continue
+        lu = (lm[lo] - p0) @ ux
+        lv = (lm[lo] - p0) @ vy
+        o = np.argsort(lu)
+        lu, lv = lu[o], lv[o]
+        pad = width * 0.8
+        x0, y0 = [int(max(0, v - pad)) for v in lm[lo].min(0)]
+        x1, y1 = int(min(w, lm[lo][:, 0].max() + pad)), int(min(h, lm[lo][:, 1].max() + pad * 1.2))
+        yy, xx = np.mgrid[y0:y1, x0:x1].astype(np.float32)
+        rel = np.stack([xx - p0[0], yy - p0[1]], -1)
+        U, V = rel @ ux, rel @ vy
+        d = np.interp(U, lu, lv) - V                      # >0 : sous la paupière inférieure
+        tu = U / width
+        # bande sous l'œil : commence juste sous les cils, s'arrête au haut de la pommette
+        across = np.clip(np.sin(np.pi * np.clip((tu + 0.05) / 1.15, 0, 1)), 0, 1)
+        band = np.clip((d - 0.04 * width) / (0.06 * width), 0, 1) * np.clip((0.5 * width - d) / (0.18 * width), 0, 1)
+        m = gauss((band * across).astype(np.float32), width * 0.06)
+        total[y0:y1, x0:x1] = np.maximum(total[y0:y1, x0:x1], m)
+    total *= np.clip(face * 1.5, 0, 1)
+    if total.max() <= 0:
+        return img
+    # teint de référence : la peau juste en dessous (pommette), en basse fréquence
+    eyew = max(np.linalg.norm(lm[133] - lm[33]), np.linalg.norm(lm[362] - lm[263]))
+    big = gauss(lab, eyew * 0.5)
+    ref = np.roll(big, int(eyew * 0.55), axis=0)          # la pommette est sous la cerne
+    low = gauss(lab, eyew * 0.12)
+    dL = np.clip(ref[..., 0] - low[..., 0], 0, None)
+    out_lab[..., 0] = lab[..., 0] + dL * k * total
+    # teinte : on corrige seulement un peu (jamais plus de 3 points), pour ne pas créer de reflets bleus ou verts
+    out_lab[..., 1] = lab[..., 1] + np.clip(ref[..., 1] - low[..., 1], -3, 3) * 0.6 * k * total
+    out_lab[..., 2] = lab[..., 2] + np.clip(ref[..., 2] - low[..., 2], -3, 3) * 0.6 * k * total
+    out = from_lab(out_lab)
+    # lisser le relief de la poche (moyennes fréquences), grain fin conservé
+    g = max(1.0, fw / 380)
+    base, fine = gauss(out, g), out - gauss(out, g)
+    smooth = cv2.bilateralFilter(base, 9, 0.06, eyew * 0.15)
+    out = np.clip(base + (smooth - base) * min(1.0, 0.32 * level) + fine, 0, 1)
+    return blend(img, out, total)
+
+
+def dents(img, lm, fw, level):
+    """Blanchit les dents (uniquement les zones claires dans la bouche ouverte, pas les gencives ni la langue)."""
+    if level <= 0:
+        return img
+    inner = poly_mask(img.shape, np.vstack([lm[LIP_IN_UP], lm[LIP_IN_LO][::-1]]))
+    if inner.sum() < 20:
+        return img
+    lab = to_lab(img)
+    L, a, b = cv2.split(lab)
+    mouth = inner > 0
+    Lm = L[mouth]
+    thr = max(35.0, np.percentile(Lm, 40))
+    teeth = (inner > 0) & (L > thr) & (a < 14)
+    teeth = cv2.morphologyEx(teeth.astype(np.uint8), cv2.MORPH_OPEN, np.ones((2, 2), np.uint8))
+    if teeth.sum() < 10:
+        return img
+    m = gauss(teeth.astype(np.float32), max(0.8, fw / 400)) * inner
+    k = level / 4.0
+    b2 = b - np.clip(b, 0, None) * min(0.75, 0.6 * k + 0.1)
+    a2 = a - np.clip(a, 0, None) * 0.35 * k
+    L2 = L + (100 - L) * 0.12 * k
+    out = from_lab(cv2.merge([L2, a2, b2]))
+    return blend(img, out, m)
+
+
+def maquillage(img, lm, fw, face, level):
+    """Maquillage très naturel : blush sur les pommettes, contouring léger sous les pommettes et sur les côtés du nez,
+    petit éclat sur l'arête du nez."""
+    if level <= 0:
+        return img
+    h, w = img.shape[:2]
+    k = level / 4.0
+    across = lm[263] - lm[33]
+    across /= np.linalg.norm(across) + 1e-6
+    lab = to_lab(img)
+    L, a, b = cv2.split(lab)
+
+    def blob(center, rx, ry, angle):
+        m = np.zeros((h, w), np.float32)
+        cv2.ellipse(m, (int(center[0]), int(center[1])), (max(1, int(rx)), max(1, int(ry))), angle, 0, 360, 1.0, -1)
+        return gauss(m, max(rx, ry) * 0.45)
+
+    def stroke(p, q, width_):
+        m = np.zeros((h, w), np.float32)
+        cv2.line(m, tuple(int(v) for v in p), tuple(int(v) for v in q), 1.0, max(1, int(width_)))
+        return gauss(m, width_ * 0.8)
+
+    ang = float(np.degrees(np.arctan2(across[1], across[0])))
+    # blush : pommes des joues (entre l'œil et le coin de la bouche, vers l'extérieur)
+    vis = visible_eyes(lm)
+    blush = np.zeros((h, w), np.float32)
+    for (eye_out, mouth_c, side), ok in zip(((33, 61, 234), (263, 291, 454)), vis):
+        if not ok:
+            continue
+        c = 0.45 * lm[eye_out] + 0.30 * lm[mouth_c] + 0.25 * lm[side]
+        blush = np.maximum(blush, blob(c, fw * 0.13, fw * 0.09, ang - 15 if side == 234 else ang + 15))
+    # contour : sous l'os de la pommette, de l'oreille vers le coin de la bouche (s'arrête à mi-chemin)
+    contour = np.zeros((h, w), np.float32)
+    for (side, mouth_c, eye_out), ok in zip(((234, 61, 33), (454, 291, 263)), vis):
+        if not ok:
+            continue
+        start = lm[side] + (lm[mouth_c] - lm[side]) * 0.05 + (lm[mouth_c] - lm[eye_out]) * 0.15
+        end = lm[side] + (lm[mouth_c] - lm[side]) * 0.5
+        contour = np.maximum(contour, stroke(start, end, fw * 0.07))
+    # nez : deux traits fins le long des côtés de l'arête + petit éclat au centre
+    top, tip = lm[168], lm[195]
+    off = across * fw * 0.075
+    light = np.zeros((h, w), np.float32)
+    if all(vis):                                          # nez : seulement visage de face ou de 3/4
+        for sgn in (-1, 1):
+            contour = np.maximum(contour, stroke(top + sgn * off, tip + sgn * off * 0.85, fw * 0.035) * 0.8)
+        light = stroke(lm[6], lm[195], fw * 0.03)
+    fm = np.clip(face * 1.2, 0, 1)
+    blush *= fm; contour *= fm; light *= fm
+    a = a + 7.0 * k * blush
+    b = b + 1.0 * k * blush
+    L = L * (1 - 0.03 * k * blush)
+    L = L * (1 - 0.09 * k * contour)
+    b = b + 2.0 * k * contour
+    L = L + (100 - L) * 0.06 * k * light
+    return from_lab(cv2.merge([L, a, b]))
 
 
 # --------------------------------------------------------------- programme
@@ -528,10 +753,18 @@ def retouche(path, out_path, s):
             report.append(f"Acné {s.acne} : {n} imperfections traitées + rougeurs unifiées")
         img = lissage(img, face, fw, s.lissage)
         report.append(f"Lissage {s.lissage}")
+        img = cernes(img, lm, fw, face, s.cernes)
+        report.append(f"Cernes {s.cernes}")
         img = sourcils(img, lm, fw, s.sourcils)
         report.append(f"Sourcils {s.sourcils}")
         img = cils(img, lm, fw, s.cils)
         report.append(f"Cils + mascara {s.cils}")
+        img = dents(img, lm, fw, s.dents)
+        report.append(f"Dents {s.dents}")
+        img = levres(img, lm, fw, s.levres)
+        report.append(f"Lèvres {s.levres}")
+        img = maquillage(img, lm, fw, face, s.maquillage)
+        report.append(f"Maquillage {s.maquillage}")
     img = cheveux(img, conf, fw, s.cheveux)
     report.append(f"Cheveux {s.cheveux}")
     img = bronzage(img, skin, s.bronzage)
@@ -560,7 +793,8 @@ def main():
     p = argparse.ArgumentParser(description="Hypic maison : retouche portrait (zones notées de 0 à 4).")
     p.add_argument("image")
     p.add_argument("-o", "--sortie")
-    for name, default in (("bronzage", 1.5), ("acne", 4), ("lissage", 1), ("cils", 1), ("sourcils", 0.5), ("cheveux", 1)):
+    for name, default in (("bronzage", 1.5), ("acne", 4), ("lissage", 1), ("cils", 1), ("sourcils", 0.5), ("cheveux", 1),
+                          ("levres", 0), ("cernes", 0), ("dents", 0), ("maquillage", 0)):
         p.add_argument(f"--{name}", type=float, default=default)
     p.add_argument("--zone", action="append", help="x0,y0,x1,y1 en fractions (0-1) : retoucher seulement cette zone (répétable)")
     p.add_argument("--autres", type=float, default=None,
