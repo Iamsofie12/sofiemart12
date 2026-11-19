@@ -586,31 +586,46 @@ def fossettes_mask(shape, lm, fw):
     return gauss(m, fw * 0.03)
 
 
+def _lips_mask(img, lm, fw):
+    lips = np.clip(poly_mask(img.shape, lm[LIPS]) - poly_mask(img.shape, np.vstack([lm[LIP_IN_UP], lm[LIP_IN_LO][::-1]])), 0, 1)
+    return gauss(lips, max(0.8, fw / 300))
+
+
 def gloss(img, lm, fw, level):
-    """Effet gloss : lèvres plus brillantes (on renforce leurs reflets) + petit reflet doux au centre de la lèvre du bas."""
+    """Effet gloss : SEULEMENT des reflets de brillance là où la lèvre accroche déjà la lumière.
+    La couleur de la lèvre ne change pas (pas d'éclaircissement global, pas de rose ajouté)."""
     if level <= 0:
         return img
     k = level / 4.0
-    lips = np.clip(poly_mask(img.shape, lm[LIPS]) - poly_mask(img.shape, np.vstack([lm[LIP_IN_UP], lm[LIP_IN_LO][::-1]])), 0, 1)
-    if lips.sum() < 20:
+    lips = _lips_mask(img, lm, fw)
+    if (lips > 0.5).sum() < 20:
         return img
-    lips = gauss(lips, max(0.8, fw / 300))
     lab = to_lab(img)
     L, a, b = cv2.split(lab)
-    # reflets existants amplifiés
-    hp = np.clip(L - gauss(L, fw / 40), 0, None)
-    hp = np.clip(hp / (np.percentile(hp[lips > 0.5], 97) + 1e-6), 0, 1) if (lips > 0.5).any() else hp
-    # reflet doux au milieu de la lèvre du bas (là où la lumière tombe naturellement)
-    lo_mid = lm[14] + (lm[17] - lm[14]) * 0.4
-    spot = np.zeros(L.shape, np.float32)
-    mw = np.linalg.norm(lm[291] - lm[61])
-    cv2.ellipse(spot, (int(lo_mid[0]), int(lo_mid[1])), (max(1, int(mw * 0.16)), max(1, int(mw * 0.045))), 0, 0, 360, 1.0, -1)
-    spot = gauss(spot, mw * 0.04)
-    shine = np.clip(hp * 0.8 + spot * 0.6, 0, 1) * lips
-    L2 = L + (100 - L) * 0.45 * k * shine
-    # lèvres un peu plus "mouillées" : couleur légèrement plus riche
-    a2 = a * (1 + 0.12 * k * lips)
-    b2 = b * (1 + 0.05 * k * lips)
+    hp = np.clip(L - gauss(L, fw / 45), 0, None)
+    ref = np.percentile(hp[lips > 0.5], 92) + 1e-6
+    shine = np.clip((hp / ref - 0.5) * 2, 0, 1) * lips         # uniquement les points déjà brillants
+    shine = gauss(shine, max(0.6, fw / 500))
+    L2 = L + (100 - L) * 0.35 * k * shine
+    # un reflet est blanc : on retire un peu de couleur seulement sur le point brillant
+    a2 = a * (1 - 0.25 * k * shine)
+    b2 = b * (1 - 0.25 * k * shine)
+    return from_lab(cv2.merge([L2, a2, b2]))
+
+
+def teinte_levres(img, lm, fw, level):
+    """Teinte mauve naturelle (rosewood) : lèvre un peu plus profonde, nuance mauve, jamais rose bonbon."""
+    if level <= 0:
+        return img
+    k = level / 4.0
+    lips = _lips_mask(img, lm, fw)
+    if (lips > 0.5).sum() < 20:
+        return img
+    lab = to_lab(img)
+    L, a, b = cv2.split(lab)
+    L2 = L * (1 - 0.16 * k * lips)
+    a2 = a + 4.0 * k * lips
+    b2 = b - 4.0 * k * lips
     return from_lab(cv2.merge([L2, a2, b2]))
 
 
@@ -846,6 +861,8 @@ def retouche(path, out_path, s):
         report.append(f"Dents {s.dents}")
         img = gloss(img, lm, fw, s.gloss)
         report.append(f"Gloss {s.gloss}")
+        img = teinte_levres(img, lm, fw, s.teinte)
+        report.append(f"Teinte lèvres mauve {s.teinte}")
         img = liner(img, lm, fw, s.liner)
         report.append(f"Liner lèvres {s.liner}")
         img = levres(img, lm, fw, s.levres)
@@ -857,6 +874,9 @@ def retouche(path, out_path, s):
     img = cheveux(img, conf, fw, s.cheveux)
     report.append(f"Cheveux {s.cheveux}")
     img = bronzage(img, skin, s.bronzage)
+    if lm is not None and s.bronzage > 0:
+        # les lèvres suivent le hâle (un peu moins que la peau), sinon elles paraissent rose pâle à côté
+        img = bronzage(img, _lips_mask(img, lm, fw), s.bronzage * 0.95)
     report.append(f"Bronzage {s.bronzage}")
     if lm is not None:
         img = highlights(img, lm, fw, face, s.highlights)
@@ -889,7 +909,7 @@ def main():
     p.add_argument("-o", "--sortie")
     for name, default in (("bronzage", 1.5), ("acne", 4), ("lissage", 1), ("cils", 1), ("sourcils", 0.5), ("cheveux", 1),
                           ("levres", 0), ("cernes", 0), ("dents", 0), ("maquillage", 0),
-                          ("glow", 0), ("iris", 0), ("highlights", 0), ("gloss", 0), ("liner", 0)):
+                          ("glow", 0), ("iris", 0), ("highlights", 0), ("gloss", 0), ("liner", 0), ("teinte", 0)):
         p.add_argument(f"--{name}", type=float, default=default)
     p.add_argument("--zone", action="append", help="x0,y0,x1,y1 en fractions (0-1) : retoucher seulement cette zone (répétable)")
     p.add_argument("--autres", type=float, default=None,
