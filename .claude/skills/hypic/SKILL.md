@@ -1,6 +1,6 @@
 ---
 name: hypic
-description: Retouche photo portrait de Sofie selon ses critères standards (bronzage par niveau, acné effacée, peau lissée légèrement, mascara/cils discrets, sourcils affinés très légèrement, cheveux lisses sans frisottis), en gardant la qualité et le naturel de l'image. Utiliser quand Sofie tape /hypic ou demande de retoucher/améliorer une photo d'elle.
+description: Retouche photo portrait de Sofie (bronzage, acné, lissage, cils/mascara, sourcils, cheveux), chaque zone notée de 0 à 4, avec le programme de retouche maison gratuit et illimité (tools/hypic/hypic.py), Canva en complément. Utiliser quand Sofie tape /hypic ou demande de retoucher/améliorer une photo d'elle.
 ---
 
 # /hypic — Retouche photo "standard Sofie"
@@ -45,39 +45,42 @@ Les zones non citées gardent leur valeur par défaut. Toujours rappeler en une 
 3. Interdits : modifier les traits, la forme des yeux, la morphologie, l'expression, les vêtements, le décor, le cadrage, la lumière générale. Aucun maquillage en dehors du mascara.
 4. Partir toujours de l'original, sauf demande explicite.
 
-## Outil
-Higgsfield (`mcp__higgsfield_ia__*`), modèle par défaut `gpt_image_2_6` (édition à partir d'une image de référence). Vérifier les rôles de médias avec `models_explore` si besoin.
+## Outil : retouche maison (gratuite, illimitée) — JAMAIS Higgsfield
+Programme : `tools/hypic/hypic.py` (Python, 100 % local, aucun crédit).
+Installation (une fois) : `pip install -r tools/hypic/requirements.txt` (sous Linux, ajouter `libegl1`).
+Les modèles de détection (visage + zones) se téléchargent tout seuls la première fois dans `~/.cache/hypic`.
+
+Commande :
+```
+python3 tools/hypic/hypic.py PHOTO --bronzage 1.5 --acne 4 --lissage 1 --cils 1 --sourcils 0.5 --cheveux 1 --comparer
+```
+→ crée `PHOTO_hypic.jpg` (même résolution, JPEG qualité 96) et `PHOTO_hypic_avant-apres.jpg`.
+
+Ce que fait le programme, zone par zone :
+- repère le visage (478 points) et sépare peau du visage / peau du corps / cheveux / vêtements / fond ;
+- acné : unifie les rougeurs diffuses, détecte chaque bouton (petite zone plus rouge ou plus sombre que la peau voisine), le rebouche avec la peau autour et remet le grain d'origine. Les taches de rousseur sont gardées ;
+- lissage : agit sur les moyennes fréquences, garde pores et grain ;
+- cils : étire légèrement les cils du haut depuis la paupière + fonce uniquement les cils existants (mascara) ;
+- sourcils : nettoie les poils qui dépassent autour ;
+- cheveux : lissage doux de la masse + suppression des frisottis qui dépassent sur le fond ;
+- bronzage : sur toute la peau détectée, reflets préservés.
+
+## Choisir l'outil selon la photo
+| Demande / photo | Outil |
+|---|---|
+| Cas standard (bronzage, acné, peau, cils, sourcils, cheveux) | **Programme maison** |
+| Recadrage, luminosité/couleurs globales, détourage, mise en page (story, post) | **Canva** (connecteur) |
+| Retouche impossible proprement en local (ex. objet à effacer du décor, cheveux qui traversent le visage, changement de forme) | Le dire honnêtement à Sofie et proposer Canva ; ne jamais passer par Higgsfield sans son accord explicite |
 
 ## Déroulé
-1. **Récupérer la photo** : si le fichier est lisible dans l'environnement → `media_upload` + PUT + `media_confirm`. Sinon → `media_upload_widget` (seul outil du tour) et attendre l'upload.
-2. **Lire les dimensions** de l'image originale (garder le même ratio d'aspect en sortie).
-3. **Construire le prompt** à partir du modèle ci-dessous, en traduisant chaque note (0-4) en intensité : 0.5-1 = "very subtle", 1.5-2 = "subtle to moderate", 2.5-3 = "noticeable", 3.5-4 = "strong but natural". Une zone à 0 = la retirer du prompt.
-4. **Coût** : `estimate_image_cost` → annoncer le coût en crédits. Lancer directement si c'est l'usage habituel (1 image) ; demander validation si plusieurs variantes ou upscale.
-5. **Générer** (`generate_image`, count 1 par défaut ; 2 si Sofie veut comparer).
-6. **Vérifier** le résultat avant de le présenter : ressemblance, acné vraiment partie, bronzage homogène, pas d'effet plastique, cils discrets. Si un point rate, le dire honnêtement et proposer une correction ciblée.
-7. **Option qualité** : proposer `upscale_image` (2k/4k) si la sortie est moins définie que l'originale.
-8. Résumer en 3 lignes ce qui a été fait + demander s'il faut ajuster (plus/moins de bronzage, cheveux, etc.).
+1. Récupérer la photo (fichier envoyé). Toujours garder l'original intact.
+2. Lancer le programme avec les notes demandées (profil standard sinon) et `--comparer`.
+3. **Vérifier soi-même** le résultat en zoomant sur : joues/front/menton (acné), yeux (cils), sourcils, contour des cheveux, bras/jambes (bronzage homogène, pas de démarcation avec les vêtements).
+4. Si un défaut se voit (bouton restant, halo, zone ratée), ajuster une note et relancer, ou corriger le programme.
+5. Envoyer la photo finale + l'avant/après, résumer les réglages en une ligne, demander s'il faut ajuster.
 
-## Modèle de prompt (anglais, plus fiable pour le modèle)
-```
-Professional, subtle beauty retouch of this exact photo. Keep the person's identity, facial features,
-face shape, body shape, expression, pose, clothing, background, framing, lighting and photo grain
-exactly the same. Photorealistic, natural, high resolution, no filter look.
-- Skin tone: apply a {TAN_DESCRIPTION} evenly on ALL visible skin (face, neck, chest, arms, hands, legs),
-  consistent everywhere, no tan lines, no orange cast, natural undertones, shadows and highlights preserved.
-- Acne: carefully remove every pimple, blemish, redness and acne mark, especially on the forehead,
-  cheeks, chin, jawline and temples.
-- Skin texture: very light smoothing only; keep pores and natural skin texture, no plastic or airbrushed look.
-- Eyes: slightly longer and fuller eyelashes with a subtle touch of black mascara; do not change eye shape,
-  size or color.
-- Eyebrows: very slightly refined and cleaned up, keep their natural shape and thickness almost identical.
-- Hair: smoother and sleeker, remove flyaways and frizz, soft subtle shine; keep hairstyle, volume,
-  length and color unchanged.
-- Do not add any other makeup. Do not alter anything else.
-{EXTRA_ADJUSTMENTS}
-```
-Descriptions de bronzage : 1 = "very light, barely sun-kissed golden tan" · 1.5 = "light-to-medium natural golden tan, like after one week of vacation" · 2 = "medium golden-caramel tan" · 2.5 = "medium-to-deep golden caramel tan" · 3 = "deep natural caramel tan" · 4 = "very deep, rich bronze tan, natural, never orange".
+## Limites honnêtes du programme maison
+- Cils : effet "mascara + légèrement plus longs", pas de faux cils dessinés.
+- Frisottis : supprimés surtout sur fond uni ; sur fond chargé, l'effet est plus léger.
+- Visage non détecté (de dos, très petit, très flou) : seuls bronzage et cheveux s'appliquent.
 
-## Limites à rappeler (une fois, brièvement)
-- L'IA régénère l'image : de très légères différences de détails sont possibles. Toujours garder l'original.
-- Chaque génération consomme des crédits Higgsfield.
