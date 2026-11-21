@@ -515,7 +515,7 @@ def levres(img, lm, fw, level):
     t_u = np.maximum(Vo_u - Vi_u, width * 0.03)
     t_l = np.maximum(Vi_l - Vo_l, width * 0.03)
     along = np.clip(np.sin(np.pi * np.clip((U + 0.04 * width) / (1.08 * width), 0, 1)), 0, 1) ** 0.6
-    g = 0.075 * level * along
+    g = 0.045 * level * along
 
     Vsrc = V.copy()
     du = V - Vi_u                                         # au-dessus de la ligne intérieure du haut
@@ -672,7 +672,8 @@ def teinte_levres(img, lm, fw, level):
 
 
 def liner(img, lm, fw, level):
-    """Contour des lèvres légèrement marqué, couleur naturelle (un ton plus profond que la lèvre)."""
+    """Contour des lèvres juste un peu plus défini, couleur naturelle de la lèvre.
+    Le trait reste À L'INTÉRIEUR de la lèvre et se fond dedans : aucune ligne ajoutée sur la peau."""
     if level <= 0:
         return img
     k = level / 4.0
@@ -680,22 +681,22 @@ def liner(img, lm, fw, level):
     mw = np.linalg.norm(lm[291] - lm[61])
     if mw < 10:
         return img
+    lips_in = poly_mask(img.shape, lm[LIPS])
+    er = max(1, int(round(mw * 0.012)))
+    lips_in = cv2.erode(lips_in, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2 * er + 1,) * 2))
     m = np.zeros((h, w), np.float32)
     th = max(1, int(round(mw * 0.03)))
     for idx in (LIP_OUT_UP, LIP_OUT_LO):
         cv2.polylines(m, [np.round(lm[idx]).astype(np.int32)], False, 1.0, th, cv2.LINE_AA)
-    # plus discret aux coins de la bouche
     corners = np.zeros((h, w), np.float32)
     for c in (61, 291):
-        cv2.circle(corners, (int(lm[c][0]), int(lm[c][1])), max(1, int(mw * 0.08)), 1.0, -1)
-    m = gauss(m, th * 0.7) * (1 - 0.7 * gauss(corners, mw * 0.04))
+        cv2.circle(corners, (int(lm[c][0]), int(lm[c][1])), max(1, int(mw * 0.1)), 1.0, -1)
+    m = gauss(m, th * 1.2) * (1 - 0.8 * gauss(corners, mw * 0.05))
+    m = m * gauss(lips_in, max(0.8, er * 0.8))           # jamais en dehors de la lèvre
     lab = to_lab(img)
     L, a, b = cv2.split(lab)
-    L2 = L * (1 - 0.24 * k * m)
-    a2 = a + 5.0 * k * m                                  # rosé-brun naturel
-    b2 = b + 1.5 * k * m
-    return from_lab(cv2.merge([L2, a2, b2]))
-
+    L2 = L * (1 - 0.10 * k * m)                           # juste un peu plus profond, sans changer la couleur
+    return from_lab(cv2.merge([L2, a, b]))
 
 def maquillage(img, lm, fw, face, level):
     """Maquillage très naturel : blush sur les pommettes, contouring léger sous les pommettes et sur les côtés du nez,
