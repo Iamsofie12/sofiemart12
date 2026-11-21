@@ -906,9 +906,16 @@ def retouche(path, out_path, s):
         report.append(f"Gloss {s.gloss}")
         img = teinte_levres(img, lm, fw, s.teinte)
         report.append(f"Teinte lèvres mauve {s.teinte}")
-        img = liner(img, lm, fw, s.liner)
+        # visage de 3/4 ou de profil, ou bouche grande ouverte (rire) : pulpeux et liner déforment le contour
+        wr = np.linalg.norm(lm[133] - lm[33]); wl = np.linalg.norm(lm[362] - lm[263])
+        frontal = min(wr, wl) / max(wr, wl, 1e-6) > 0.8
+        mouth_open = np.linalg.norm(lm[13] - lm[14]) > 0.12 * np.linalg.norm(lm[291] - lm[61])
+        lips_ok = frontal and not mouth_open
+        if not lips_ok and (s.levres > 0 or s.liner > 0):
+            report.append("Lèvres pulpeuses + liner désactivés (visage de 3/4 ou bouche ouverte : rendu non naturel)")
+        img = liner(img, lm, fw, s.liner if lips_ok else 0)
         report.append(f"Liner lèvres {s.liner}")
-        img = levres(img, lm, fw, s.levres)
+        img = levres(img, lm, fw, s.levres if lips_ok else 0)
         report.append(f"Lèvres {s.levres}")
         img = maquillage(img, lm, fw, face_nd, s.maquillage)
         report.append(f"Maquillage {s.maquillage}")

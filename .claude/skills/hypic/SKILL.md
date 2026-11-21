@@ -106,6 +106,7 @@ Ce que fait le programme, zone par zone :
 - Frisottis : effacés sur fond flou/uni. Sur décor net et chargé (roseaux, grillage, feuillage), le programme les laisse volontairement pour ne pas abîmer le décor : proposer Canva ou une retouche manuelle si Sofie veut aller plus loin.
 - Petits cheveux posés sur la peau (front, tempes) : pas encore traités (pas assez fiable).
 - Petits visages (photos en pied) : détectés grâce à un zoom automatique.
+- Lèvres pulpeuses et liner : appliqués seulement visage de face et bouche fermée ou peu ouverte. Sur un rire ou un 3/4, ils créaient une ligne en double sous la lèvre (photo IMG_4183) : désactivés automatiquement.
 - Visage de profil : seuls l'œil, le sourcil et la joue visibles sont retouchés (pas de contouring du nez, pas d'éclat de l'iris).
 - Visage non détecté (de dos, très flou) : seuls bronzage et cheveux s'appliquent.
 
@@ -1019,9 +1020,16 @@ def retouche(path, out_path, s):
         report.append(f"Gloss {s.gloss}")
         img = teinte_levres(img, lm, fw, s.teinte)
         report.append(f"Teinte lèvres mauve {s.teinte}")
-        img = liner(img, lm, fw, s.liner)
+        # visage de 3/4 ou de profil, ou bouche grande ouverte (rire) : pulpeux et liner déforment le contour
+        wr = np.linalg.norm(lm[133] - lm[33]); wl = np.linalg.norm(lm[362] - lm[263])
+        frontal = min(wr, wl) / max(wr, wl, 1e-6) > 0.8
+        mouth_open = np.linalg.norm(lm[13] - lm[14]) > 0.12 * np.linalg.norm(lm[291] - lm[61])
+        lips_ok = frontal and not mouth_open
+        if not lips_ok and (s.levres > 0 or s.liner > 0):
+            report.append("Lèvres pulpeuses + liner désactivés (visage de 3/4 ou bouche ouverte : rendu non naturel)")
+        img = liner(img, lm, fw, s.liner if lips_ok else 0)
         report.append(f"Liner lèvres {s.liner}")
-        img = levres(img, lm, fw, s.levres)
+        img = levres(img, lm, fw, s.levres if lips_ok else 0)
         report.append(f"Lèvres {s.levres}")
         img = maquillage(img, lm, fw, face_nd, s.maquillage)
         report.append(f"Maquillage {s.maquillage}")
