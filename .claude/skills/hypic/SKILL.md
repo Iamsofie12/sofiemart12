@@ -104,6 +104,7 @@ Ce que fait le programme, zone par zone :
 ## Limites honnêtes du programme maison
 - Cils : effet "mascara + légèrement plus longs", pas de faux cils dessinés.
 - Frisottis : effacés sur fond flou/uni. Sur décor net et chargé (roseaux, grillage, feuillage), le programme les laisse volontairement pour ne pas abîmer le décor : proposer Canva ou une retouche manuelle si Sofie veut aller plus loin.
+- Oreilles et boucles d'oreilles : toujours protégées de la suppression des frisottis (un bijou peut être pris pour un cheveu, vu sur IMG_4228).
 - Petits cheveux posés sur la peau (front, tempes) : pas encore traités (pas assez fiable).
 - Petits visages (photos en pied) : détectés grâce à un zoom automatique.
 - Lèvres pulpeuses et liner : appliqués seulement visage de face et bouche fermée ou peu ouverte. Sur un rire ou un 3/4, ils créaient une ligne en double sous la lèvre (photo IMG_4183) : désactivés automatiquement.
@@ -512,7 +513,7 @@ def sourcils(img, lm, fw, level):
     return out
 
 
-def cheveux(img, conf, fw, level, feat=None):
+def cheveux(img, conf, fw, level, feat=None, lm=None):
     """Cheveux plus lisses + suppression des petits cheveux qui dépassent sur le fond."""
     if level <= 0:
         return img
@@ -531,6 +532,14 @@ def cheveux(img, conf, fw, level, feat=None):
     reach = max(5, int(fw * (0.12 + 0.045 * level))) | 1
     zone = cv2.dilate(hb, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (reach, reach))) & (1 - main)
     protect = (conf[2] + conf[3] + conf[4] + conf[5]) > 0.3
+    if lm is not None:
+        # oreilles et boucles d'oreilles : jamais touchées (les bijoux ressemblent à des frisottis pour le programme)
+        ears = np.zeros(hb.shape, np.uint8)
+        down = lm[152] - lm[168]
+        for side, low in ((234, 132), (454, 361)):
+            c = (lm[side] + lm[low]) / 2 + down * 0.12
+            cv2.ellipse(ears, (int(c[0]), int(c[1])), (max(1, int(fw * 0.3)), max(1, int(fw * 0.5))), 0, 0, 360, 1, -1)
+        protect = protect | (ears > 0)
     zone = (zone > 0) & ~protect & (hair < 0.7)          # cheveux sûrs (tresse, queue de cheval) jamais effacés
     if not zone.any():
         return out
@@ -1035,7 +1044,7 @@ def retouche(path, out_path, s):
         report.append(f"Maquillage {s.maquillage}")
         img = iris_eclat(img, lm, fw, s.iris)
         report.append(f"Iris / éclat des yeux {s.iris}")
-    img = cheveux(img, conf, fw, s.cheveux, feat if lm is not None else None)
+    img = cheveux(img, conf, fw, s.cheveux, feat if lm is not None else None, lm)
     img = matifiant(img, conf, fw, s.matifiant)
     report.append(f"Cheveux non gras {s.matifiant}")
     report.append(f"Cheveux {s.cheveux}")
