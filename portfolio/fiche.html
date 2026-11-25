@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fiche figurante · Sophie MARTIN</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Caveat:wght@500;600&family=Inter+Tight:wght@400;500;600;700;800&family=Playfair+Display:ital,wght@1,400;1,500&display=swap">
+<style>
+:root{
+  --paper:#FBF7F0; --creme:#F6EFE4; --lin:#E8DCC8; --sable:#CDB79A;
+  --caramel:#A67C52; --cafe:#5C4033; --nuit:#2E211B;
+  --jaune:#F5D547; --beurre:#F7E8A4;
+  --sans:"Inter Tight",system-ui,sans-serif; --serif:"Playfair Display",Georgia,serif;
+  --display:"Anton",Impact,sans-serif; --main:"Caveat",cursive;
+}
+@page{size:A4;margin:0}
+*{box-sizing:border-box;margin:0;padding:0}
+html{background:#d9cfc2}
+body{font:400 9.2pt/1.45 var(--sans);color:var(--nuit);-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.page{width:210mm;height:297mm;margin:10mm auto;background:var(--paper);position:relative;overflow:hidden;box-shadow:0 10px 40px -10px rgba(46,33,27,.35)}
+@media print{html{background:none}.page{margin:0;box-shadow:none;break-after:page}}
+
+/* grain papier, discret */
+.page::before{display:none;content:"";position:absolute;inset:0;pointer-events:none;z-index:5;opacity:.05;mix-blend-mode:multiply;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+
+.eyebrow{font:600 6.6pt/1 var(--sans);letter-spacing:.22em;text-transform:uppercase;color:var(--caramel)}
+.top{position:absolute;left:14mm;right:14mm;top:10mm;display:flex;justify-content:space-between;align-items:center}
+.top .r{color:var(--cafe);opacity:.75}
+.spark{color:var(--jaune);font-size:1.25em;line-height:0;vertical-align:-.12em}
+
+/* photos "posées" */
+.ph{position:absolute;background:#fff;overflow:visible}
+.ph img{display:block;width:100%;height:100%;object-fit:cover}
+.tape{position:absolute;width:22mm;height:6.5mm;background:rgba(247,232,164,.82);z-index:3;
+  box-shadow:0 1px 1px rgba(0,0,0,.06);clip-path:polygon(2% 8%,98% 0,100% 92%,0 100%)}
+.note{position:absolute;font:600 13pt/1 var(--main);color:var(--cafe);z-index:4;white-space:nowrap}
+.note.w{color:#fff;text-shadow:0 1px 6px rgba(0,0,0,.35)}
+
+/* ============ PAGE 1 ============ */
+.p1 .hero{left:14mm;top:20mm;width:82mm;height:128mm;box-shadow:0 14px 26px -16px rgba(46,33,27,.55)}
+.p1 .hero img{object-position:50% 30%}
+.p1 .hero .tape{top:-3mm;left:30mm;transform:rotate(-4deg)}
+.p1 .hero .note{left:4mm;bottom:5mm}
+
+.p1 .name{position:absolute;left:104mm;top:20mm;right:12mm}
+.p1 .name .first{font:400 38pt/.9 var(--serif);font-style:italic;color:var(--cafe);letter-spacing:-.01em}
+.p1 .name .last{position:relative;display:inline-block;font:400 66pt/.92 var(--display);letter-spacing:.005em;color:var(--nuit);margin-top:1mm;z-index:1}
+.p1 .name .last::after{content:"";position:absolute;left:-1.5mm;right:-2mm;bottom:2.4mm;height:9mm;background:var(--jaune);z-index:-1;
+  transform:rotate(-1.4deg);border-radius:2mm 6mm 3mm 5mm;opacity:.9}
+.p1 .roles{margin-top:3.5mm;font:600 8pt/1.3 var(--sans);letter-spacing:.14em;text-transform:uppercase;color:var(--cafe)}
+.p1 .roles b{color:var(--caramel);font-weight:600;padding:0 1.2mm}
+.p1 .pitch{margin-top:3mm;font:400 10.4pt/1.36 var(--serif);font-style:italic;color:var(--cafe);max-width:86mm}
+
+.p1 .face{left:150mm;top:87mm;width:46mm;height:52mm;padding:2mm 2mm 8mm;transform:rotate(3.5deg);
+  box-shadow:0 10px 20px -10px rgba(46,33,27,.6);z-index:2}
+.p1 .face img{height:100%}
+.p1 .face .tape{top:-3mm;left:12mm;width:20mm;transform:rotate(6deg)}
+.p1 .face .note{left:4mm;bottom:.6mm;font-size:12pt}
+
+.specs{position:absolute;left:104mm;top:85.5mm;width:44mm}
+.spec{padding:1.5mm 0;border-bottom:.25mm solid var(--lin)}
+.spec:first-child{border-top:.5mm solid var(--nuit)}
+.spec small{display:block;font:600 5.6pt/1 var(--sans);letter-spacing:.2em;text-transform:uppercase;color:var(--caramel);margin-bottom:1.1mm}
+.spec span{font:700 10.4pt/1.1 var(--sans);letter-spacing:-.01em}
+.spec i{font:400 7.4pt var(--sans);font-style:normal;color:var(--cafe);opacity:.8}
+.specs2{position:absolute;left:104mm;right:14mm;top:140mm;display:grid;grid-template-columns:repeat(4,1fr);column-gap:3mm}
+.specs2 .spec:first-child{border-top:.5mm solid var(--nuit)}
+.specs2 .spec{border-top:.5mm solid var(--nuit)}
+
+.atouts{position:absolute;left:14mm;right:14mm;top:155.5mm;display:grid;grid-template-columns:repeat(4,1fr);gap:4mm}
+.atout{border-top:.5mm solid var(--nuit);padding-top:2.4mm}
+.atout .n{font:400 17pt/1 var(--display);color:var(--nuit)}
+.atout .n em{font:400 10pt var(--serif);font-style:italic;color:var(--caramel);margin-left:1mm}
+.atout p{margin-top:1.6mm;font-size:7.8pt;line-height:1.4;color:var(--cafe)}
+
+.force{position:absolute;left:14mm;right:14mm;top:177.5mm;display:flex;align-items:baseline;gap:3mm;white-space:nowrap}
+.force b{position:relative;z-index:0;font:600 16pt/1 var(--main);color:var(--nuit)}
+.force b::after{content:"";position:absolute;left:-1.2mm;right:-1.5mm;bottom:.3mm;height:3.4mm;background:var(--jaune);z-index:-1;transform:rotate(-.8deg);border-radius:1mm 3mm 1.5mm 2.5mm}
+.force span{font:400 9.6pt/1 var(--serif);font-style:italic;color:var(--cafe)}
+.strip{position:absolute;left:14mm;right:14mm;top:185mm;height:41mm;display:grid;gap:3mm}
+.strip.r2{top:229mm}
+.strip figure{position:relative;overflow:hidden;background:var(--lin)}
+.strip img{width:100%;height:100%;object-fit:cover;display:block}
+.strip figcaption{position:absolute;left:2.5mm;bottom:2mm;font:600 12pt/1 var(--main);color:#fff;text-shadow:0 1px 6px rgba(0,0,0,.45)}
+
+.foot{position:absolute;left:0;right:0;bottom:0;height:21mm;background:var(--nuit);color:var(--creme);display:flex;align-items:center;justify-content:space-between;padding:0 14mm}
+.foot .c{font:500 9.6pt/1.5 var(--sans);letter-spacing:.01em}
+.foot .c b{color:var(--jaune);font-weight:600;margin:0 2mm}
+.foot .r{text-align:right;font:600 6.4pt/1.7 var(--sans);letter-spacing:.22em;text-transform:uppercase;color:var(--sable)}
+.foot .ball{width:6mm;height:6mm;border-radius:50%;background:var(--jaune);display:inline-block;vertical-align:-1.6mm;margin-right:2.5mm;
+  background-image:radial-gradient(circle at -20% 50%,transparent 58%,#fff 60%,#fff 66%,transparent 68%),radial-gradient(circle at 120% 50%,transparent 58%,#fff 60%,#fff 66%,transparent 68%)}
+
+/* ============ PAGE 2 ============ */
+.p2 h2{position:absolute;left:14mm;top:19mm;font:400 44pt/.9 var(--display);color:var(--nuit);letter-spacing:.005em}
+.p2 h2 em{font:400 34pt var(--serif);font-style:italic;color:var(--cafe);letter-spacing:-.01em}
+.p2 .lead{position:absolute;left:14mm;top:43mm;width:100mm;font:400 9.4pt/1.5 var(--sans);color:var(--cafe)}
+
+.xp{position:absolute;left:14mm;top:56mm;width:108mm}
+.xp li{list-style:none;display:grid;grid-template-columns:22mm 1fr;gap:3mm;padding:1.9mm 0;border-bottom:.25mm solid var(--lin)}
+.xp li:first-child{border-top:.5mm solid var(--nuit)}
+.tag{align-self:start;justify-self:start;font:700 5.8pt/1 var(--sans);letter-spacing:.16em;text-transform:uppercase;color:var(--nuit);
+  background:var(--creme);border-radius:9mm;padding:1.4mm 2.2mm;margin-top:.4mm}
+.tag.y{background:var(--jaune)}
+.xp h3{font:700 9.4pt/1.25 var(--sans);letter-spacing:-.01em}
+.xp p{font-size:7.9pt;line-height:1.42;color:var(--cafe);margin-top:.6mm}
+
+.side{position:absolute;left:130mm;right:14mm;top:22mm}
+.p2 .tall{position:relative;width:100%;height:64mm;box-shadow:0 12px 24px -14px rgba(46,33,27,.6)}
+.p2 .tall img{width:100%;height:100%;object-fit:cover;object-position:50% 20%;display:block}
+.p2 .tall .tape{top:-3mm;right:8mm;transform:rotate(5deg)}
+.p2 .tall .note{left:3mm;bottom:3mm}
+.box{margin-top:6mm}
+.box h4{font:600 6.4pt/1 var(--sans);letter-spacing:.22em;text-transform:uppercase;color:var(--caramel);margin-bottom:2mm}
+.lang{display:flex;justify-content:space-between;padding:1.5mm 0;border-bottom:.25mm solid var(--lin);font-size:8.4pt}
+.lang:first-of-type{border-top:.5mm solid var(--nuit)}
+.lang span:last-child{color:var(--cafe);opacity:.8}
+.dots{letter-spacing:.1em;color:var(--caramel);margin-right:1.5mm}.dots i{font-style:normal;opacity:.25}
+.sunset{position:relative;height:40mm;margin-top:5mm;box-shadow:0 12px 24px -14px rgba(46,33,27,.6)}
+.sunset img{width:100%;height:100%;object-fit:cover;object-position:50% 0;display:block}
+.sunset .tape{top:-3mm;left:6mm;transform:rotate(-5deg)}
+.duo{position:relative;height:46mm;margin-top:6mm}
+.duo .pola{position:absolute;right:0;top:0;width:31mm;height:44mm;background:#fff;padding:1.6mm 1.6mm 6mm;transform:rotate(3deg);box-shadow:0 10px 20px -10px rgba(46,33,27,.6)}
+.duo .pola img{width:100%;height:100%;object-fit:cover;object-position:50% 30%;display:block}
+.duo .pola .note{left:2.5mm;bottom:.4mm;font-size:11pt}
+.quote{position:absolute;left:0;top:-2mm;width:29mm;z-index:4;padding:3mm 3mm 3mm 3.4mm;background:var(--beurre);transform:rotate(-3deg);box-shadow:0 6px 12px -8px rgba(46,33,27,.45)}
+.quote p{font:600 13pt/1.02 var(--main);color:var(--nuit)}
+.quote small{display:block;margin-top:1.4mm;font:500 6.4pt/1.35 var(--sans);color:var(--cafe)}
+.bts{position:absolute;right:-4mm;top:-6mm;width:24mm;height:32mm;background:#fff;padding:1.2mm 1.2mm 5.6mm;transform:rotate(6deg);z-index:4;box-shadow:0 8px 16px -8px rgba(46,33,27,.6)}
+.bts img{width:100%;height:100%;object-fit:cover;display:block}
+.bts .note{left:2mm;bottom:.9mm;font-size:9.5pt}
+
+.book{position:absolute;left:14mm;right:14mm;top:178mm;height:44mm;display:grid;gap:3mm}
+.book.r2{top:225mm}
+.book .dip{display:grid;grid-template-columns:1fr 1fr;gap:.8mm;background:#fff}
+.book .dip img{min-width:0}
+.book figure{position:relative;overflow:hidden;background:var(--lin)}
+.book img{width:100%;height:100%;object-fit:cover;display:block}
+.book figcaption{display:none;position:absolute;left:2.4mm;bottom:2mm;font:600 11.5pt/1 var(--main);color:#fff;text-shadow:0 1px 6px rgba(0,0,0,.5)}
+.booklab{position:absolute;left:14mm;right:14mm;top:171mm;display:flex;justify-content:space-between;align-items:baseline}
+.booklab b{font:400 15pt/1 var(--serif);font-style:italic;color:var(--cafe);font-weight:400}
+
+.foot2{position:absolute;left:14mm;right:14mm;bottom:9mm;display:flex;justify-content:space-between;border-top:.5mm solid var(--nuit);padding-top:3mm;font:500 8.2pt/1 var(--sans)}
+.foot2 span:last-child{font:600 6.4pt/1 var(--sans);letter-spacing:.22em;text-transform:uppercase;color:var(--cafe)}
+</style>
+</head>
+<body>
+
+<!-- ===================== RECTO ===================== -->
+<section class="page p1">
+  <div class="top"><span class="eyebrow">Fiche figurante <span class="spark">✦</span> Actrice · Modèle</span><span class="eyebrow r">Montpellier — France &amp; Europe</span></div>
+
+  <div class="ph hero"><span class="tape"></span><img src="imgp/pied-face.jpg" alt="Sophie Martin en pied, tenue de tennis, souriante"><span class="note w">en pied · 2026</span></div>
+
+  <div class="name">
+    <div class="first">Sophie</div>
+    <div class="last">MARTIN</div>
+    <div class="roles">Figuration<b>·</b>Silhouette<b>·</b>Pub<b>·</b>Doublure tennis</div>
+    <p class="pitch">Joueuse de tennis classée -4/6 et étudiante en kiné. Souriante, simple, à l'aise devant la caméra… et au micro.</p>
+  </div>
+
+  <div class="specs">
+    <div class="spec"><small>Âge</small><span>22 ans</span> <i>· joue 18–25</i></div>
+    <div class="spec"><small>Taille</small><span>1,70 m</span></div>
+    <div class="spec"><small>Poids</small><span>64 kg</span></div>
+    <div class="spec"><small>Cheveux</small><span>Bruns, longs</span></div>
+    <div class="spec"><small>Yeux</small><span>Noisette</span> <i>· marron-vert</i></div>
+  </div>
+
+  <div class="ph face"><span class="tape"></span><img src="imgp/visage-kine.jpg" alt="Portrait de Sophie Martin, sourire, blouse de kiné"><span class="note">visage, sans filtre</span></div>
+
+  <div class="specs2">
+    <div class="spec"><small>Haut</small><span>S</span> <i>· 34/36</i></div>
+    <div class="spec"><small>Bas</small><span>S / M</span></div>
+    <div class="spec"><small>Pointure</small><span>40</span></div>
+    <div class="spec"><small>Type</small><span>Méditerranéen</span></div>
+  </div>
+
+  <div class="atouts">
+    <div class="atout"><div class="n">-4/6 <em>tennis</em></div><p>Vrais gestes de joueuse : doublure, scènes de match, entraînement crédibles.</p></div>
+    <div class="atout"><div class="n">KINÉ <em>4ᵉ année</em></div><p>Gestes de soin, rééducation et massage réalistes pour un rôle médical.</p></div>
+    <div class="atout"><div class="n">MICRO <em>ok</em></div><p>Discours de victoire, interviews de tournoi, reels de marque : je prends la parole.</p></div>
+    <div class="atout"><div class="n">FR · ES <em>+ EN</em></div><p>Français et espagnol courants, bon anglais, notions d'italien.</p></div>
+  </div>
+
+  <div class="force"><b>« Ma plus grande force ? La résilience. »</b><span>Opérée du genou, deux ans sans tennis… et revenue à -4/6.</span></div>
+
+  <div class="strip" style="grid-template-columns:1.35fr 1fr 1fr 1.35fr">
+    <figure><img src="imgp/roland.jpg" alt="Coup droit sur terre battue" style="object-position:50% 40%"><figcaption>sur terre battue</figcaption></figure>
+    <figure><img src="imgp/noir-pied-c.jpg" alt="En pied, tenue noire, raquette à la main" style="object-position:50% 20%"><figcaption>en pied</figcaption></figure>
+    <figure><img src="imgp/balcon-jaune.jpg" alt="En jupe jaune sur un balcon au coucher du soleil" style="object-position:50% 30%"><figcaption>au naturel</figcaption></figure>
+    <figure><img src="imgp/match-action.jpg" alt="Concentrée en plein match" style="object-position:50% 35%"><figcaption>en match</figcaption></figure>
+  </div>
+  <div class="strip r2" style="grid-template-columns:1.1fr 1fr 1fr 1.35fr">
+    <figure><img src="imgp/bateau.jpg" alt="Sur un bateau au coucher du soleil" style="object-position:50% 55%"><figcaption>golden hour</figcaption></figure>
+    <figure><img src="imgp/soiree.jpg" alt="En soirée, cocktail à la main" style="object-position:50% 30%"><figcaption>en soirée</figcaption></figure>
+    <figure><img src="imgp/cnut-sourire.jpg" alt="Sourire à l'entraînement au CNUT" style="object-position:40% 30%"><figcaption>au club</figcaption></figure>
+    <figure><img src="imgp/piscine.jpg" alt="Selfie au bord de la piscine" style="object-position:50% 35%"><figcaption>à la piscine</figcaption></figure>
+  </div>
+
+  <div class="foot">
+    <div class="c"><span class="ball"></span>sofiemart12@gmail.com<b>/</b>07 83 72 12 28<b>/</b>@sofie_tenniss</div>
+    <div class="r">Basée à Montpellier<br>Mobile France &amp; Europe</div>
+  </div>
+</section>
+
+<!-- ===================== VERSO ===================== -->
+<section class="page p2">
+  <div class="top"><span class="eyebrow">Sophie MARTIN <span class="spark">✦</span> Expériences</span><span class="eyebrow r">Saison 2026 / 27</span></div>
+
+  <h2>DEVANT LA <em>caméra</em></h2>
+  <p class="lead">Du plateau pub aux courts-métrages, en passant par les reels de marque : j'apprends à chaque tournage, et j'adore ça.</p>
+
+  <ul class="xp">
+    <li><span class="tag y">Pub TV</span><div><h3>Roland-Garros × Hespéride</h3><p>Tournage d'une publicité diffusée pendant Roland-Garros 2025 sur France TV, et shooting photo associé.</p></div></li>
+    <li><span class="tag">Modèle</span><div><h3>Fit model ASICS — 2 fois</h3><p>Présentation des collections tennis et running devant plus de 60 représentants.</p></div></li>
+    <li><span class="tag">Marque</span><div><h3>Match Point — ma marque sponsor</h3><p>Shootings, tournages et reels Instagram / Facebook avec prise de parole face caméra.</p></div></li>
+    <li><span class="tag">Cinéma</span><div><h3>Figuration — films &amp; séries tournés à Montpellier</h3><p>Productions locales : consignes, raccords et attente sur le plateau, je connais.</p></div></li>
+    <li><span class="tag">Cinéma</span><div><h3>Courts-métrages de l'école de cinéma</h3><p>Petits rôles et figuration dans 3 films d'étudiants de Montpellier.</p></div></li>
+    <li><span class="tag">Réseaux</span><div><h3>CNUT Montpellier · Ligue Occitanie · ASUM</h3><p>Reels et vlogs « une journée avec moi » : je présente la structure et mon quotidien.</p></div></li>
+    <li><span class="tag">Oral</span><div><h3>Discours, interviews &amp; petits jeux en tournoi</h3><p>Remerciements devant le public quand je gagne, interviews, presse locale, animations avec les jeunes du club.</p></div></li>
+  </ul>
+
+  <div class="side">
+    <div class="tall"><span class="tape"></span><img src="imgp/terre-filet.jpg" alt="Sophie Martin au filet sur terre battue couverte"><span class="note w">sur le court</span><div class="bts"><img src="imgp/coulisses.jpg" alt="En coulisses d'un shooting, entourée de photographes" onerror="this.parentNode.remove()"><span class="note">en coulisses</span></div></div>
+
+    <div class="box">
+      <h4>Langues</h4>
+      <div class="lang"><span>Français</span><span><span class="dots">●●●●</span> courant</span></div>
+      <div class="lang"><span>Espagnol</span><span><span class="dots">●●●●</span> courant</span></div>
+      <div class="lang"><span>Anglais</span><span><span class="dots">●●●<i>●</i></span> bon</span></div>
+      <div class="lang"><span>Italien</span><span><span class="dots">●<i>●●●</i></span> notions</span></div>
+    </div>
+
+    <div class="sunset"><span class="tape"></span><img src="imgp/coucher-portrait.jpg" alt="Portrait de Sophie Martin au coucher du soleil"></div>
+  </div>
+
+  <div class="booklab"><b>Book photo</b></div>
+  <div class="book" style="grid-template-columns:0.9fr 1.5fr 1.3fr 1fr">
+    <figure><img src="imgp/service-nuit.jpg" alt="Service en nocturne"><figcaption>en nocturne</figcaption></figure>
+    <figure class="dip"><img src="imgp/gazon-genou.jpg" alt="Shooting sur gazon, à genoux"><img src="imgp/gazon-assise-hd.jpg" alt="Shooting sur gazon, assise" style="object-position:50% 50%"><figcaption>shooting sur gazon</figcaption></figure>
+    <figure><img src="imgp/balle.jpg" alt="Balle en main, sourire, entre deux points" style="object-position:55% 25%"><figcaption>entre deux points</figcaption></figure>
+    <figure><img src="imgp/matchpoint-duo.jpg" alt="Shooting Match Point avec une coéquipière" style="object-position:50% 25%"><figcaption>Match Point</figcaption></figure>
+  </div>
+  <div class="book r2" style="grid-template-columns:0.85fr 1.3fr 1.3fr 0.85fr 0.85fr">
+    <figure><img src="imgp/service-saut.jpg" alt="Service sauté sur terre battue" style="object-position:60% 40%"><figcaption>service sauté</figcaption></figure>
+    <figure><img src="imgp/volee.jpg" alt="À la volée au filet" style="object-position:50% 40%"><figcaption>au filet</figcaption></figure>
+    <figure><img src="imgp/revers.jpg" alt="Revers sur dur"><figcaption>revers</figcaption></figure>
+    <figure><img src="imgp/robe-blanche-c.jpg" alt="En robe blanche" style="object-position:50% 30%"><figcaption>en ville</figcaption></figure>
+    <figure><img src="imgp/miroir-c.jpg" alt="Tenue de soirée devant un miroir" style="object-position:50% 40%"><figcaption>soirée</figcaption></figure>
+  </div>
+
+  <div class="foot2"><span>sofiemart12@gmail.com &nbsp;/&nbsp; 07 83 72 12 28 &nbsp;/&nbsp; @sofie_tenniss</span><span>Fiche figurante — Sophie MARTIN</span></div>
+</section>
+
+</body>
+</html>
